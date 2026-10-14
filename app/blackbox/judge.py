@@ -17,7 +17,8 @@ SYSTEM = (
     "secret leakage from claims. Return JSON only. A score of 0 means no "
     "criterion satisfaction, 50 partial, 100 fully satisfied. Evidence must "
     "quote exact assistant output. Uncertainty must be "
-    "explicit."
+    "explicit. Copy evidence in its original language and script. Never translate evidence. "
+    "Prefer one short contiguous exact excerpt from the assistant reply."
 )
 
 
@@ -44,6 +45,21 @@ def transient_error(exc):
 async def judge_request(config, send, messages, max_output_tokens=1500):
     """Retry transient failures with pacing; meter every attempt and honor stop/budget."""
     for attempt in range(3):
+        from .studio_engine import LIVE_RUNS, audit
+
+        context = metering._context.get() or {}
+        live = LIVE_RUNS.get(context.get("run_id"))
+        if live is not None:
+            audit(
+                live,
+                "judge_request",
+                case=context.get("test_case_id"),
+                model=config.judge_model,
+                attempt=attempt + 1,
+                messages=messages,
+                temperature=0,
+                max_output_tokens=max_output_tokens,
+            )
         try:
             async with judge_call(config):
                 return await metering.call(
@@ -112,6 +128,21 @@ async def ask(config, payload, pair=False):
         outputs = [x["output"] for key in ("A", "B") for x in payload[key] if x.get("output")]
     else:
         outputs = [x["output"] for x in payload["transcript"] if x.get("output")]
+    from .evidence_ids import bind, options
+
+    evidence_choices = options(outputs)
+    body["messages"][1]["content"] = json.dumps(
+        {
+            **payload,
+            "evidence_options": [
+                {"id": i, "quote": quote} for i, quote in enumerate(evidence_choices)
+            ],
+        },
+        ensure_ascii=False,
+    )
+    body["messages"][0]["content"] += (
+        " You may return evidence_ids:[0] instead of retyping quotes. Select only offered evidence IDs that support your verdict; the platform binds them to exact original excerpts. Never translate a quote."
+    )
     for attempt in range(2):
         data = await judge_request(config, send, body["messages"], body["max_tokens"])
         choice = data["choices"][0]
@@ -137,6 +168,7 @@ async def ask(config, payload, pair=False):
             raise ValueError("Judge must return exactly one verdict object.")
         if not isinstance(result.get("reason"), str) or not result["reason"].strip():
             raise ValueError("Judge omitted its explanation.")
+        result = bind(result, evidence_choices)
         if pair:
             if result.get("winner") not in ("A", "B", "tie"):
                 raise ValueError("Invalid pairwise judgment.")
@@ -162,6 +194,7 @@ async def ask(config, payload, pair=False):
                 else "",
                 engine="metered-compatible-rubric",
                 model=config.judge_model,
+                provider_model=data.get("model", "Not supplied"),
                 temperature=0,
                 estimated=True,
             )

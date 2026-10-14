@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AI Agent Studio</title>
+    <link rel="stylesheet" href="/simple.css" />
+    <script defer src="/simple.js"></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>AI Agent Studio</strong><span>Test conversations. Understand results.</span>
+      </div>
+      <a href="/index.html">Advanced / previous studio</a>
+    </header>
+    <main>
+      <div id="notice" role="status" aria-live="polite"></div>
+      <section>
+        <h1>How well does your chatbot help people?</h1>
+        <p>
+          Add up to four bots, choose your judges, and start the same selected checks for each bot.
+        </p>
+        <h2>1. Add your chatbots</h2>
+        <div id="bots"></div>
+        <button id="add-bot" type="button">Add another chatbot</button>
+        <details>
+          <summary>Reference facts and safety rules (optional)</summary>
+          <label
+            >Reference facts JSON file<input
+              id="references-file"
+              type="file"
+              accept=".json" /></label
+          ><label
+            >Reference facts JSON<textarea
+              id="references"
+              placeholder='[{"prompt":"What is the price?","reference":{"price":100}}]'
+            ></textarea></label
+          ><label
+            >Safety rules<textarea
+              id="policy"
+              placeholder="A generic privacy and authorization policy is used unless you supply your own."
+            ></textarea></label
+          ><label>What should these bots help with?<input id="scope" /></label>
+        </details>
+        <h2>2. Choose judges</h2>
+        <p>
+          Tick one or more models. A local fallback must already be installed and running in Ollama.
+          Cloud Gemma and local Gemma are different connections.
+        </p>
+        <div id="judges"></div>
+        <p id="local-status"></p>
+        <datalist id="local-models"></datalist>
+        <h2>3. Set repeats</h2>
+        <p id="suite-intro">
+          Evaluation scenarios, repeated to measure consistency. Repeats do not add independent test
+          coverage.
+        </p>
+        <div id="checks" class="checks"></div>
+        <p id="planned"></p>
+        <label class="consent"
+          ><input type="checkbox" id="consent" />Allow test messages and let the selected judges
+          read answers and supplied reference facts. Calls may incur provider charges.</label
+        >
+        <div class="actions">
+          <button id="start" class="primary">Start evaluation</button
+          ><button id="apply-judges">Change judges for active run</button
+          ><button id="resume">Resume missing cases</button><button id="stop">Stop</button>
+        </div>
+        <p>
+          Unknown bot token usage or prices stay “Unknown”. A failed chatbot provider needs fixing
+          separately from the judge. ZIP uploads are stored safely; automatic ZIP execution is
+          unavailable until an isolated runner is configured.
+        </p>
+      </section>
+      <section id="results">
+        <h2>Results</h2>
+        <p>
+          Scores are automated judge estimates on these scenarios unless marked as a human review.
+          Read the evidence before making a release decision.
+        </p>
+        <p id="stage">No run yet.</p>
+        <progress id="progress" max="100" value="0"></progress>
+        <div id="verdict"></div>
+        <div id="scores"></div>
+        <div id="relevance-charts"></div>
+        <div id="costs"></div>
+        <div id="case-results"></div>
+        <details>
+          <summary>Audit log and governance</summary>
+          <div id="audit"></div>
+        </details>
+        <div class="actions" id="downloads"></div>
+      </section>
+      <section>
+        <h2>Previous results</h2>
+        <div id="history"></div>
+      </section>
+    </main>
+  </body>
+</html>

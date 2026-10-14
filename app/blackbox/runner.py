@@ -186,7 +186,7 @@ def aggregate(run):
             + f"Quality uses evaluated cases only. Coverage {summary['coverage']}%; at least {threshold * 100:g}% is required in every selected category."
         )
     run["summary"] = summaries
-    if len(summaries) > 1:
+    if len(summaries) > 1 and not run["config"].get("simple_mode"):
         from .comparisons import compare
 
         run["comparison"] = compare(run, scored)
@@ -224,10 +224,19 @@ def aggregate(run):
 
     run["regressions"] = regressions(run, scored)
     run["costs"] = summarize(run)
+    if run["config"].get("simple_mode"):
+        from .studio_engine import summarize as studio_summary
+
+        studio_summary(run)
     return run
 
 
 def make_run(config):
+    if config.simple_mode:
+        from .studio_engine import settings_file
+
+        config.categories = [c["category"] for c in settings_file()["cases"]]
+        config.category_weights = config.category_weights or settings_file()["weights"]
     pricing.pin(config)
     cases = build_cases(config)
     eligible = [c for c in cases if c["category"] != "performance" and not c["prerequisite"]]
@@ -252,6 +261,7 @@ def make_run(config):
         )
     public = config.model_dump(exclude={"judge_token", "secondary_judge_token", "targets"})
     public["targets"] = [t.model_dump(exclude={"token"}) for t in config.targets]
+    public["judges"] = [j.model_dump(exclude={"token"}) for j in config.judges]
     run = {
         "id": str(uuid.uuid4()),
         "version": "blackbox-2-cost",
@@ -283,18 +293,34 @@ def make_run(config):
     from .baselines import snapshot
 
     run["baseline_ids"] = snapshot(run["targets"])
+    if config.simple_mode:
+        from .studio_engine import settings_file
+
+        run["protocol_snapshot"] = settings_file()
+        import importlib.metadata
+        import sys
+
+        run["engine_versions"] = {
+            "python": sys.version.split()[0],
+            "litellm": importlib.metadata.version("litellm"),
+        }
+
+        run["target_auth_required"] = any(t.token for t in config.targets)
+        run["target_auth_slots"] = [i for i, t in enumerate(config.targets) if t.token]
     return aggregate(run)
 
 
 def save(run, config=None):
     if config:
         secrets = [t.token.get_secret_value() for t in config.targets if t.token]
+        secrets.extend(j.token.get_secret_value() for j in config.judges if j.token)
         if config.judge_token:
             secrets.append(config.judge_token.get_secret_value())
         if config.secondary_judge_token:
             secrets.append(config.secondary_judge_token.get_secret_value())
+        config._used_secrets = list(dict.fromkeys(config._used_secrets + secrets))
         encoded = json.dumps(run)
-        for secret in secrets:
+        for secret in config._used_secrets:
             if secret:
                 encoded = encoded.replace(secret, "[REDACTED]")
         clean = json.loads(encoded)
@@ -329,6 +355,19 @@ class EvaluationExecutor:
     def __init__(self, run, config, connector_factory=Connector):
         self.run = run
         self.config = config
+        if config.simple_mode:
+            from .judge import SYSTEM
+            from .studio_engine import LIVE_CONFIGS, LIVE_RUNS, audit
+
+            LIVE_CONFIGS[run["id"]] = config
+            LIVE_RUNS[run["id"]] = run
+            run["judge_prompt"] = SYSTEM
+            audit(
+                run,
+                "execution_started",
+                judges=[j.model for j in config.judges],
+                price_snapshot=run.get("price_snapshot_id"),
+            )
         self.stop = ACTIVE.setdefault(run["id"], asyncio.Event())
         self.runtime = Runtime(config, self.stop)
         self.clients = [connector_factory(target, config.timeout) for target in config.targets]
@@ -356,11 +395,23 @@ class EvaluationExecutor:
         for attempt in range(3):
             observation = await asyncio.wait_for(self.clients[i].conversation(case), allowance)
             reason = str(observation.get("error") or "").lower()
-            if blocked := quota_reason(reason):
+            if (blocked := quota_reason(reason)) and not self.config.simple_mode:
                 error = ProviderQuotaUnavailable("Chatbot: " + blocked)
                 error.observation = observation
                 raise error
             rate_limited = "rate_limit" in reason or "429" in reason or "rate limit" in reason
+            if self.config.simple_mode:
+                rate_limited = rate_limited or any(
+                    x in reason
+                    for x in (
+                        "temporary_connection",
+                        "provider_error",
+                        "500",
+                        "502",
+                        "503",
+                        "timeout",
+                    )
+                )
             if not rate_limited or attempt == 2 or case["category"] == "performance":
                 return observation
             case.setdefault("request_attempts", []).append(
@@ -370,7 +421,7 @@ class EvaluationExecutor:
                 "Provider rate limit: waiting 60 seconds before retrying " + case["name"]
             )
             self.checkpoint()
-            await asyncio.sleep(60)
+            await asyncio.sleep(min(12, 3 * (attempt + 1)) if self.config.simple_mode else 60)
             self.runtime.check()
 
     async def target_result(self, case, i):
@@ -390,7 +441,7 @@ class EvaluationExecutor:
             ):
                 async with self.runtime.target(self.config.targets[i].url):
                     reason = self.unavailable.get(i) or case["prerequisite"]
-                    if self.errors[i] >= 3:
+                    if self.errors[i] >= 3 and not self.config.simple_mode:
                         reason = (
                             "Target circuit breaker opened after 3 consecutive failed conversations; "
                             "remaining requests were not "
@@ -407,14 +458,21 @@ class EvaluationExecutor:
                     if observation is None:
                         observation = await self.conversation_with_recovery(case, i, allowance)
                     self.errors[i] = self.errors[i] + 1 if observation.get("error") else 0
-                    if self.errors[i] >= 3:
+                    if self.errors[i] >= 3 and not self.config.simple_mode:
                         self.unavailable[i] = (
                             "Target circuit breaker opened after 3 consecutive failed conversations; "
                             "remaining requests were not "
                             "sent."
                         )
                 self.runtime.check()
-                judged = await evaluate(self.config, case, observation)
+                if observation.get("error"):
+                    raise ValueError(observation["error"])
+                if self.config.simple_mode:
+                    from .studio_engine import panel
+
+                    judged = await panel(self.config, case, observation)
+                else:
+                    judged = await evaluate(self.config, case, observation)
             case["results"][i] = {
                 **judged,
                 "status": "passed" if judged["score"] >= 80 else "failed",
@@ -427,6 +485,14 @@ class EvaluationExecutor:
                 if case["category"] == "performance"
                 else "concurrent_quality",
             }
+            if self.config.simple_mode and not judged.get("panel_complete", True):
+                case["results"][i].update(
+                    status="not_tested",
+                    score=None,
+                    partial_score=judged["score"],
+                    reason="Some requested judges were unavailable; remaining valid estimates are retained for review. "
+                    + judged["reason"],
+                )
             if judged.get("budget_stop"):
                 raise metering.BudgetLimit(judged["budget_stop"])
         except (metering.BudgetLimit, Halted, asyncio.CancelledError) as exc:
@@ -505,8 +571,10 @@ class EvaluationExecutor:
                                     "paused."
                                 ),
                             }
-                        elif not self.config.judge_enabled or any(
-                            r.get("deterministic_score") == 0 for r in (left, right)
+                        elif (
+                            self.config.simple_mode
+                            or not self.config.judge_enabled
+                            or any(r.get("deterministic_score") == 0 for r in (left, right))
                         ):
                             x, y = left["score"], right["score"]
                             pair = {
@@ -617,6 +685,10 @@ class EvaluationExecutor:
             await asyncio.gather(*(c.close() for c in self.clients), return_exceptions=True)
             await self.runtime.close()
             ACTIVE.pop(self.run["id"], None)
+            from .studio_engine import LIVE_CONFIGS, LIVE_RUNS
+
+            LIVE_CONFIGS.pop(self.run["id"], None)
+            LIVE_RUNS.pop(self.run["id"], None)
 
     async def execute(self):
         """Run discovery, quality and exclusive speed phases; always clean up."""

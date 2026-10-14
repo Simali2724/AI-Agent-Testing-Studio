@@ -9,7 +9,13 @@ permissions:
 
 jobs:
   quality:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
     timeout-minutes: 20
     env:
       PYTHONUTF8: "1"

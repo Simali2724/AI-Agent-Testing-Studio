@@ -227,7 +227,12 @@ async def judge_call(config):
     if not runtime:
         yield
         return
-    gate = runtime.shared.judges[key(config.judge_url)]
+    gate = runtime.register(
+        runtime.shared.judges,
+        key(config.judge_url),
+        config.judge_concurrency,
+        config.judge_pause_seconds,
+    )
     async with runtime.shared.judge_totals["all"].slot(runtime):
         async with gate.slot(runtime):
             await gate.pace(runtime)

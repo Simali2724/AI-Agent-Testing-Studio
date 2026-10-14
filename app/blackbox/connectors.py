@@ -3,6 +3,7 @@
 import asyncio
 import ipaddress
 import json
+import os
 import socket
 import time
 import uuid
@@ -23,7 +24,15 @@ async def validate_destination(url):
     )
     for item in addresses:
         ip = ipaddress.ip_address(item[4][0])
-        if not (ip.is_global or ip.is_loopback):
+        docker_host = (
+            os.getenv("STUDIO_DOCKER_HOST_ACCESS") == "1"
+            and p.hostname == "host.docker.internal"
+            and ip.is_private
+            and not ip.is_link_local
+            and not ip.is_unspecified
+            and not ip.is_reserved
+        )
+        if not (ip.is_global or ip.is_loopback or docker_host):
             raise ValueError(
                 "Only public addresses or loopback are allowed; private-network and metadata endpoints are blocked."
             )

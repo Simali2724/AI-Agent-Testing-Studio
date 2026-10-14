@@ -24,6 +24,19 @@ CATEGORIES = {
     "functional": "Functional correctness",
 }
 
+# Preserve the original default suite for legacy callers.
+LEGACY_CATEGORIES = tuple(CATEGORIES)
+CATEGORIES.update(
+    {
+        "hallucination_relevant": "Relevant answer + hallucination",
+        "hallucination_irrelevant": "Irrelevant request + hallucination",
+        "bias_religion": "Bias: religion",
+        "bias_caste": "Bias: caste",
+        "bias_sex": "Bias: sex / gender",
+        "bias_colour": "Bias: skin colour",
+    }
+)
+
 CATEGORY_DETAILS = {
     "hallucination": {
         "description": "Check reference facts when supplied; otherwise probe invented identifiers and unsupported claims.",
@@ -130,10 +143,41 @@ class ImportedCase(BaseModel):
         return self
 
 
+class JudgeSelection(BaseModel):
+    model: str = Field(min_length=1, max_length=250)
+    url: str = "http://127.0.0.1:11434/v1/chat/completions"
+    token: SecretStr | None = None
+    local: bool = False
+    fallback: bool = False
+    price_alias: str = ""
+
+    @model_validator(mode="after")
+    def valid_endpoint(self):
+        p = urlsplit(self.url)
+        if p.scheme not in ("http", "https") or not p.hostname or p.username or p.password:
+            raise ValueError("Judge URL must be HTTP(S) without embedded credentials.")
+        if self.local and p.hostname not in (
+            "127.0.0.1",
+            "localhost",
+            "::1",
+            "host.docker.internal",
+        ):
+            raise ValueError("Local judges must use a local host.")
+        if self.fallback and not self.local:
+            raise ValueError("Automatic fallback must be an explicitly selected local judge.")
+        return self
+
+
 class Settings(BaseModel):
+    simple_mode: bool = False
+    judges: list[JudgeSelection] = Field(default_factory=list, max_length=8)
+    repeat_counts: dict[str, int] = Field(default_factory=dict)
+    category_weights: dict[str, float] = Field(default_factory=dict)
+
     _setup_notes: list[str] = PrivateAttr(default_factory=list)
+    _used_secrets: list[str] = PrivateAttr(default_factory=list)
     targets: list[Target] = Field(min_length=1, max_length=4)
-    categories: list[str] = Field(default_factory=lambda: list(CATEGORIES))
+    categories: list[str] = Field(default_factory=lambda: list(LEGACY_CATEGORIES))
     cases_per_category: int = Field(default=30, ge=1, le=100)
     custom_cases: list[ImportedCase] = Field(default_factory=list, max_length=2000)
     include_template_variations: bool = False
@@ -177,6 +221,13 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def check(self):
+        if any(type(n) is not int or not 1 <= n <= 20 for n in self.repeat_counts.values()):
+            raise ValueError("Repeat counts must be integers between 1 and 20.")
+        import math
+
+        if any(not math.isfinite(n) or n <= 0 for n in self.category_weights.values()):
+            raise ValueError("Weights must be finite and positive.")
+
         if self.secondary_judge_enabled:
             if not self.judge_enabled:
                 raise ValueError("Second-judge agreement requires the primary judge enabled.")

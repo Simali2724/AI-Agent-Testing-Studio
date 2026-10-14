@@ -21,12 +21,14 @@ from .blackbox.cost_summary import estimate
 from .blackbox.reports import generate_pdf
 from .blackbox.runner import ACTIVE, TASKS, aggregate, execute, make_run, now, save
 from .blackbox.schema import CATEGORIES, CATEGORY_DETAILS, ImportedCase, Settings, Target
+from .blackbox.studio_routes import router as studio_router
 from .config import MAX_UPLOAD, ROOT, RUNTIME
 
 
 @asynccontextmanager
 async def lifespan(app):
     metering.recover_interrupted()
+    recovery_ids = []
     for run in db.all_records("blackbox"):
         if run["status"] in ("queued", "running"):
             run.update(status="interrupted", finished_at=now(), stage="interrupted")
@@ -35,6 +37,30 @@ async def lifespan(app):
                     if r["reason"] == "Pending execution.":
                         r["reason"] = "Application restarted before this case ran."
             save(aggregate(run))
+            if run["config"].get("simple_mode"):
+                recovery_ids.append(run["id"])
+    if os.getenv("STUDIO_AUTO_RESUME", "1") == "1":
+        from .blackbox.studio_engine import audit
+        from .blackbox.studio_routes import prepare
+
+        for ident in recovery_ids:
+            previous = db.get("blackbox", ident)
+            try:
+                if previous.get("target_auth_required"):
+                    raise ValueError("Re-enter the target API credential to resume.")
+                cfg = prepare(
+                    Settings.model_validate(previous["config"]), previous.get("protocol_snapshot")
+                )
+                if any(not j.local and not j.token for j in cfg.judges):
+                    raise ValueError("Re-enter missing judge credentials to resume.")
+                await resume_run(uuid.UUID(ident), cfg)
+            except Exception:
+                audit(
+                    previous,
+                    "recovery_waiting",
+                    reason="Automatic resume needs valid credentials or capacity. Use Resume missing cases.",
+                )
+                save(previous)
     yield
     for event in ACTIVE.values():
         event.set()
@@ -56,7 +82,7 @@ def capacity():
         )
 
 
-app = FastAPI(title="AI Agent Studio â€” Black-box Judge", lifespan=lifespan)
+app = FastAPI(title="AI Agent Studio - Black-box Judge", lifespan=lifespan)
 
 
 @app.get("/api/blackbox/case-set")
@@ -399,6 +425,11 @@ async def resume_run(ident: uuid.UUID, config: Settings):
         "timeout",
     ):
         run["config"][key] = getattr(config, key)
+    if config.simple_mode:
+        from .blackbox.studio_engine import audit
+
+        run["config"]["judges"] = [j.model_dump(exclude={"token"}) for j in config.judges]
+        audit(run, "resume", models=[j.model for j in config.judges])
     run.pop("budget_reason", None)
     run.pop("provider_reason", None)
     pending = 0
@@ -611,6 +642,14 @@ def delete_run(ident: uuid.UUID):
         "deleted": value,
         "note": "Saved results and usage rows removed. Downloaded reports are unchanged.",
     }
+
+
+app.include_router(studio_router)
+
+
+@app.get("/")
+def simple_screen():
+    return FileResponse(ROOT / "app/blackbox_static/simple.html")
 
 
 app.mount("/", StaticFiles(directory=ROOT / "app" / "blackbox_static", html=True), name="frontend")

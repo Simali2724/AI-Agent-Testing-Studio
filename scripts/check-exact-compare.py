@@ -86,7 +86,7 @@ with tempfile.TemporaryDirectory(prefix="studio-compare-ui-") as runtime:
             page = browser.new_page(viewport={"width": 1440, "height": 1000})
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
-            page.goto("http://127.0.0.1:2710/?run=" + run["id"], wait_until="networkidle")
+            page.goto("http://127.0.0.1:2710/index.html?run=" + run["id"], wait_until="networkidle")
             page.wait_for_selector("#comparison table")
             assert "Head-to-head matrix" in page.locator("#comparison").inner_text()
             assert page.locator("#summaries [data-baseline]").count() == 4

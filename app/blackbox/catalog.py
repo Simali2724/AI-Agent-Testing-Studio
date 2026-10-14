@@ -333,6 +333,10 @@ def apply_judge_prerequisites(config, cases):
 
 def build_cases(config):
     """Select scenarios, record their prerequisites and never pad a short case set."""
+    if config.simple_mode:
+        from .studio_engine import cases
+
+        return cases(config)
     defaults = default_case_set()
     cases = []
     for category in config.categories:

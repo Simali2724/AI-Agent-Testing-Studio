@@ -37,6 +37,27 @@ def generate_pdf(run):
 
     paragraph("AI Agent Studio — black-box evaluation", "Title")
     paragraph("Run " + run["id"])
+    if run.get("studio"):
+        paragraph(
+            f"{len(run.get('protocol_snapshot', {}).get('cases', [])) or len(run['studio']['bots'][0]['categories'])}-check evaluation index",
+            "Heading1",
+        )
+        paragraph(run["studio"]["formula"])
+        paragraph(run["studio"]["confidence_note"])
+        for bot in run["studio"]["bots"]:
+            paragraph(
+                f"{bot['name']}: {bot['score']}%; {bot['tested']}/{bot['planned']} scored",
+                "Heading2",
+            )
+            for category in bot["categories"]:
+                paragraph(
+                    f"{category['name']}: index {category['score']}%; tested quality {category['quality']}; {category['tested']}/{category['planned']} scored; repeat spread {category['spread']} points"
+                )
+        paragraph("Audit log", "Heading2")
+        paragraph(json.dumps(run.get("audit", []), ensure_ascii=False))
+        paragraph(
+            "Existing measured-quality statistics below exclude missing evidence; the configured index above applies the requested zero contribution."
+        )
     paragraph(run["score_formula"])
     for note in run.get("setup_notes", []):
         paragraph(note)

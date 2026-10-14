@@ -206,3 +206,14 @@ Formatting code does not establish an unimplemented capability.
   attached to explain the stop; no case score or transcript was modified.
 - Incomplete judge JSON gets one bounded retry with a larger output allowance;
   both attempts are metered. No fabricated judgment substitutes for a failure.
+
+## 2026-10-14 — Simple ten-case Studio
+
+- New default screen separates chatbot connections from judge selection and defaults to three repeats of ten authored scenarios. Older datasets/API routes remain compatible at /index.html.
+- New protocol uses a worst-case missing-evidence index requested by the user, and keeps measured quality and coverage separate. Historical runs retain their original measured-quality policy.
+- Winners require complete evidence and a positive scenario-cluster interval against every opponent. Repeats are not treated as independent coverage. Weights and tie margin are editable and snapshotted.
+- Use existing LiteLLM/metering/connectors instead of adding Promptfoo. Claude uses LiteLLM Anthropic conversion; Google Gemma retains the existing native adapter for compatibility.
+- Local fallback is explicit, never an automatic model download or unauthorized cloud data transfer. An unavailable chatbot provider is independent of judge availability.
+- Persist exact judge prompts and a versioned protocol snapshot. Model identifiers do not guarantee an immutable upstream revision; provider identifiers are retained when returned.
+- No ZIP host execution. Optional Docker hosts the Studio only. TASK: implement an isolated ZIP runner with resource/network limits and consent.
+- VERIFIED: offline scoring, fallback, live update, override, crash-recovery, cost and concurrency tests; formatter/linter and shell syntax. TASK: native Mac/Linux/Docker execution and real-model integration when providers are usable.

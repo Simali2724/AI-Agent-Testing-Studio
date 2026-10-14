@@ -421,10 +421,19 @@ async def completion(url, body, key="", timeout=30):
 
     litellm.telemetry = False
     litellm.suppress_debug_info = True
+    provider = "anthropic" if urlsplit(url).hostname == "api.anthropic.com" else "openai"
+    api_base = (
+        "https://api.anthropic.com"
+        if provider == "anthropic"
+        else url.rstrip("/")[: -len("/chat/completions")]
+    )
+    request_body = dict(body)
+    if provider == "anthropic":
+        request_body.pop("response_format", None)
     data = await litellm.acompletion(
-        **{**body, "model": body["model"]},
-        custom_llm_provider="openai",
-        api_base=url.rstrip("/")[: -len("/chat/completions")],
+        **request_body,
+        custom_llm_provider=provider,
+        api_base=api_base,
         api_key=key or "local-no-key",
         timeout=timeout,
         num_retries=0,
