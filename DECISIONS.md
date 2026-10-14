@@ -1,0 +1,208 @@
+# Current engineering decisions
+
+Audited for Ticket 89 on 2026-10-13. This register describes the active application.
+Historical notes are preserved in [the archive](docs/decision-history.md); they are
+not current verification claims. Capability gaps have explicit acceptance criteria
+in [BACKLOG.md](BACKLOG.md).
+
+## Maintainable source and automated checks
+
+Use pinned Ruff 0.14.1 for Python formatting, four-space indentation, import
+sorting, undefined/unused-name checks and invalid/packed-statement checks. Use
+Prettier 3.6.2 for maintained frontend files and documentation. Development tools
+are separate from runtime requirements.
+
+`EvaluationExecutor` owns one run's state. Discovery, quality workers, sequential
+speed checks, progress persistence and cleanup are named methods. Public
+`execute()` remains compatible. `build_cases()` delegates selection, normalization
+and judge prerequisites to separate helpers. Long plain literals were split with
+an AST-equivalence check; prompt content was preserved.
+
+The Windows GitHub Actions workflow runs format/lint, JavaScript syntax, pytest
+and isolated browser checks. Local success is distinct from a hosted CI result:
+GitHub runs the workflow after publication. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the code map and reproducible commands.
+
+## Black-box boundary and permissions
+
+The active entry point is `app.main` -> `app.blackbox_app`. Evaluation uses REST,
+OpenAI-compatible, SSE or browser conversations, never source-code scoring.
+ZIPs are stored but never executed on the host. A virtual environment is not a
+sandbox; isolated ZIP execution is task MAINT-01.
+
+Target-message, judge-sharing and performance permissions remain explicit.
+Missing permissions fail before network preparation. Authentication, ambiguous
+widget detection and connection errors have explicit failure paths.
+
+Evidence: `tests/test_easy_setup.py` and `tests/test_blackbox_upgrade.py`, including
+real local REST, compatible-API, browser, HTTP-error, SSE and ZIP fixtures. These
+tests do not certify arbitrary external chatbots.
+
+## Quality and evidence coverage
+
+Ticket 81 supersedes the original missing-evidence-zero policy. Quota, timeout,
+judge, connection and prerequisite errors remain `not_tested` with null scores.
+Measured zero scores remain failures. Category quality averages evaluated cases;
+overall quality equally weights categories with evidence. Coverage is evaluated
+cases divided by planned cases and is shown separately.
+
+Ranking requires the configured coverage threshold in every category (80% by
+default). Comparisons use jointly evaluated cases with valid pair judgments.
+Missing evidence is never a loss or tie. Historical retrieval normalizes missing
+scores without rewriting transcripts.
+
+Evidence: `tests/test_coverage_scoring.py` and `tests/test_reference_free.py`.
+
+## Case provenance and prerequisites
+
+Imports take priority over built-in scenarios. Usable uploaded facts replace
+generic hallucination probes; references are not cycled to fill a count.
+Reference-free probes assess unsupported claims and uncertainty, not all factual
+knowledge. Synthetic identifiers are not assumed globally nonexistent.
+
+The core suites have 46 authored scenarios. Remaining legacy scenarios are
+labeled; extra wording variations require opt-in and are not independent coverage.
+Cases record provenance, rubric and prerequisites. Scope and business correctness
+still need supplied expectations. Preview allows unavailable categories to be
+excluded before execution. Further authored-case expansion is task MAINT-04.
+
+Evidence: `tests/test_curated_and_evidence.py`, `tests/test_reference_free.py` and
+`app/blackbox/cases/README.md`.
+
+## Exact checks, judges and evidence
+
+Explicit required/forbidden strings and canaries support deterministic checks.
+They do not understand semantic equivalence or negation. Combined scores use the
+minimum of exact and primary rubric scores. Exact failure survives judge errors;
+exact success cannot replace missing semantic judgment. AI scores remain estimates.
+
+Evidence matching normalizes Unicode, whitespace, quotes, dashes and case.
+Ellipses require substantial ordered fragments and bounded gaps. At least one
+supported quote is required; partial matches are flagged for review. A verdict
+with no supporting quote gets one metered retry, then fabricated evidence is rejected.
+
+Optional second-judge sampling is seeded and requires a different declared family,
+different model and separate consent. Its results are diagnostic: report sample
+denominator, pass/fail agreement and absolute difference. Family labels are
+operator declarations; agreement is not proof of correctness.
+
+Evidence: `tests/test_curated_and_evidence.py` and
+`tests/test_exact_multijudge_compare.py`.
+
+## Comparison and baselines
+
+Continue the Studio with 2–4 targets instead of merging products in this change.
+All target pairs use identical cases. AI pair judgments randomize and swap answer
+order; disagreement is disclosed. Exact failure can override AI preference.
+
+Winner confidence uses paired net-win bootstrap (2,000 resamples), equal category
+weight, at least 10 distinct scenarios and pair-count adjustment. Template variants
+are clustered. Insufficient coverage or intervals spanning zero mean no confident
+winner. Intervals are exploratory and conditional on the selected case set.
+
+Baselines are explicit immutable snapshots. Protocol hashes reject incompatible
+comparisons; shared coverage gates descriptive regression alerts. Blind arena and
+automatic release gates are task MAINT-05.
+
+Evidence: `tests/test_exact_multijudge_compare.py` and the isolated
+`scripts/check-exact-compare.py` browser check.
+
+## Concurrency and timing
+
+Defaults: four case workers, four conversations per target host, four judge calls
+and three active runs. Browser conversations are capped at two. The strictest
+active host limits and pacing apply across evaluations in one event loop.
+HTTP sessions/cookies and histories are isolated per conversation. One Uvicorn
+worker is required; distributed scheduling is outside current scope.
+
+Speed checks are globally exclusive and sequential while other Studio traffic
+waits. Timing starts after pacing. External traffic and machine load remain
+uncontrolled. Sequential-speed summaries are separate from concurrent latencies.
+
+Cancellation, budgets and deadlines preserve completed evidence and close tasks,
+clients and scheduling leases. Progress saves are coalesced at 500 ms with a final
+save. SQLite contexts commit/rollback and explicitly close connections.
+
+Evidence: `tests/test_concurrency.py` and interruption tests in `tests/test_costs.py`.
+Ticket 87's prior 3.14x timing result is synthetic, not a new chatbot benchmark.
+
+## Costs, secrets and source distribution
+
+Calls have attempt-level metering. Unknown billing stays unknown, not zero.
+Reported usage, tokenizer counts and text estimates have separate provenance.
+Prices use immutable snapshots and decimal arithmetic. Target and evaluation
+costs are separated; hidden bot-internal model/tool traffic cannot be recovered
+without telemetry. Reservations include in-flight calls. Budget control limits
+dispatch, not the provider's bill; requests already sent may still incur cost.
+Secondary-judge interruption preserves completed primary evidence.
+
+Stored settings redact secrets. The source exporter uses an allowlist, credential
+checks, private-file exclusions, limits, ZIP validation and no-overwrite publication.
+Quality/development files are now included. Explorer ZIPs do not honor `.gitignore`.
+The user reported the exposed key revoked; provider-side revocation was not tested
+as part of this maintenance work. No new key or paid provider call is needed here.
+
+Evidence: `tests/test_costs.py` and `tests/test_package_release.py`.
+
+## Disposition of historical open checks
+
+| Earlier item                                        | Current disposition                                                                                                                                                           |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Interrupted dependency install                      | Replaced by current environment audit: `pip check` passes and core tests exercise runtime imports. Old installation logs are historical.                                      |
+| Connector fixture tests                             | Implemented in `test_blackbox_upgrade.py` and included in the full suite. External compatibility is task MAINT-03.                                                            |
+| Evaluator, UI and report verification               | Regression tests, report export tests and isolated comparison browser checks provide current evidence; see `docs/verification.md`.                                            |
+| Optional engines and model integration              | DeepEval, DeepTeam, Garak and Transformers are absent in the audited environment. Torch alone does not establish integration. Task MAINT-02 requires actual engine execution. |
+| Isolated ZIP execution                              | Deliberately unavailable; task MAINT-01, with no host-execution fallback.                                                                                                     |
+| Universal 30-case count and missing-evidence zero   | Superseded by explicit/imported scenarios and the quality/coverage policy above.                                                                                              |
+| Historical live model/provider/benchmark statements | Preserved as historical notes, not evidence from this change. Task MAINT-03 defines repeatable external validation.                                                           |
+
+Verification results are recorded in [docs/verification.md](docs/verification.md).
+Formatting code does not establish an unimplemented capability.
+
+## Visible controls, quota recovery and expanded suite — 14 October 2026
+
+- The user's newer instruction removes the $5 cap for this run. Budget controls
+  remain available, and unknown billing is never converted to zero.
+- UI provider selection targets the judge; it does not silently replace the bot
+  under test. Kimi model discovery succeeded, but its chat request was rejected
+  for insufficient API balance. Its key was not saved. OpenAI/DeepSeek endpoint
+  options use the compatible adapter; live account checks await supplied keys.
+- Gemini 3.5 Flash Lite timed out in a direct probe. Gemini 2.5 Flash answered the
+  direct probe in 1.27 s and the actual Reliance product query in 2.64 s with usage.
+  Reliance's non-secret model setting is now 2.5 Flash. Old-model results remain
+  in their original run; they were not merged into the new-model benchmark.
+- The expanded suite retains every imported row: 79 hallucination (including 49
+  supplied rows), 30 for each of 14 other categories, 10 functional checks = 509.
+  Preserve provenance: template variations and mock reference facts are disclosed.
+- Judge retries are bounded and individually metered. Target rate-limit recovery
+  preserves failed observations and waits 60 s, at most twice. Performance has
+  no automatic replay; its observed error/latency remains a real speed sample.
+- Complete saved transcripts are reused on judge-only retries. Primary judge
+  changes are logged. Such runs require mixed-judge interpretation, not silent
+  claim of comparability. No existing user run was deleted during verification.
+- Gemini-compatible usage reconciliation accounts for total-token gaps as thought
+  tokens only for Gemini models; ordinary OpenAI-inclusive totals are not doubled.
+  Regression tests cover both forms. Native token-count reference:
+  https://ai.google.dev/gemini-api/docs/generate-content/thinking
+- Local retrieval now has a 12 s deadline and embedding HTTP attempts are bounded;
+  existing keyword fallback remains. The full bot answer uses a separate deadline.
+- A full live run encountered provider rate limits, so throughput is deliberately
+  reduced. Complete live coverage remains a runtime outcome, not a software-test
+  claim. Follow-up task: add provider-account-wide pacing shared with instrumented
+  bot internals and an optional provider quota preflight.
+
+## Account quota exhaustion — 14 October 2026
+
+- Direct provider diagnostics identified a daily Gemini quota, not only burst
+  throttling: HTTP 429, 20 requests per day for the selected model, about 21.5
+  hours until retry. The newly supplied key reported the same exhausted quota.
+  Changing a key does not necessarily change project-level quota. Neither new
+  credential was saved by these checks; the Kimi account reported no balance.
+- Account/billing or daily exhaustion pauses dispatch with `provider_limit`.
+  Messages are fixed safe text; provider error bodies and keys are not exposed.
+  Existing scores and complete transcripts are retained for resume. Transient
+  rate limits still have bounded retries. Slow mode cannot bypass a daily cap.
+- The live run remains partial: 5 scored of 509. A separate diagnostic was
+  attached to explain the stop; no case score or transcript was modified.
+- Incomplete judge JSON gets one bounded retry with a larger output allowance;
+  both attempts are metered. No fabricated judgment substitutes for a failure.
