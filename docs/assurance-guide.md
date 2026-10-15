@@ -47,3 +47,14 @@ The HHEM adapter needs separately installed, reviewed offline weights and config
 Scanner image/DB execution, real HHEM accuracy and native macOS/Linux execution still require integration validation. Windows offline tests do not prove these integrations work.
 
 References: [Gitleaks](https://github.com/gitleaks/gitleaks), [Semgrep local rules](https://docs.semgrep.dev/running-rules), [OSV offline mode](https://github.com/google/osv-scanner/blob/main/docs/offline-mode.md), [Trivy air gap](https://www.trivy.dev/docs/v0.55/guide/advanced/air-gap/). The [OWASP LLM Top 10](https://genai.owasp.org/llm-top-10/) and [NIST AI RMF](https://www.nist.gov/itl/ai-risk-management-framework) mapping is informational engineering guidance, not certification or legal compliance.
+
+
+## Verified White scanner run and Windows/WSL notes
+
+The six scanner tools were actually run against a Python/Next.js source ZIP on Windows with Ubuntu WSL on 2026-10-15. This verifies that integration on this host, not native macOS/Linux behavior or comprehensive security coverage.
+
+Windows may use `STUDIO_SCANNER_WSL_DISTRO=Ubuntu` to route only Docker commands into an installed WSL engine. No TCP daemon port is opened. Native Docker remains the default when this variable is absent. Source/rules stay read-only and network remains disabled during scans. Only the public Trivy database gets a disposable writable copy, capped at 2 GiB; the shared DB stays read-only.
+
+OSV 1.9.2 uses `scan --experimental-offline --experimental-all-packages`. It has a configurable 2 GiB RAM / 240-second cap (other scanners default 512 MiB / 60 seconds); cold-start metadata/version checks use separate 30/45-second limits. Large public databases may need a package-scoped snapshot from the official offline inventory. `STUDIO_SCANNER_OSV_DATABASE` can name that trusted snapshot directory. A scope.json coverage manifest and filtered DB hashes are required, and every package in the final OSV report must be covered. A different bot with an uncovered dependency is Not tested until a matching snapshot is provisioned. Package inventory alone is never accepted as a vulnerability pass.
+
+The result page distinguishes **checks processed by scanners** from **passes**. No-match controls are completed text scans with insufficient evidence, so their verdict remains Not tested. Exists means a declaration was observed, not that its control works. Trivy filesystem dependencies may be inspected even when no Dockerfile exists; no submitted image is built. OSV and Trivy issue counts can overlap. One existing PII regex can over-redact public CVE identifiers; advisory redaction needs further context-aware refinement.

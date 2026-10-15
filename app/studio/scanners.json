@@ -44,8 +44,20 @@
     },
     "osv": {
       "version": "1.9.2",
+      "memory_mb": 2048,
+      "timeout_seconds": 240,
+      "output_bytes": 8388608,
       "image": "ghcr.io/google/osv-scanner:v1.9.2",
-      "args": ["--offline", "--format=json", "--recursive", "/source"],
+      "args": [
+        "scan",
+        "--experimental-offline",
+        "--experimental-all-packages",
+        "--no-ignore",
+        "--skip-git",
+        "--format=json",
+        "--recursive",
+        "/source"
+      ],
       "database": "osv"
     },
     "trivy": {
@@ -59,7 +71,7 @@
         "--skip-java-db-update",
         "--skip-check-update",
         "--format=json",
-        "--cache-dir=/offline/trivy",
+        "--cache-dir=/cache",
         "/source"
       ],
       "database": "trivy"

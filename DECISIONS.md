@@ -233,3 +233,12 @@ Formatting code does not establish an unimplemented capability.
 - Link findings by bot/category with explicit uncertainty, never infer a code cause from behavior alone. Full describes selected evidence modes, not certification or complete coverage.
 - Preserve original overridden findings, source hashes and anchored state hashes. Raw source uploads stay private until their retention expires; report secret findings contain only tails. Regex redaction is not comprehensive anonymization.
 - Keep the fixed benchmark threshold. Both baseline and modified code fail it on the current host; profiling/further performance work remains open instead of inflating the baseline.
+
+
+## 2026-10-15 — Execute the requested source audit honestly
+
+- Keep scanner completion separate from a passing verdict. All 14 checks can process while six control questions remain Not tested: limited text rules found no sufficient evidence. Never invent controls or turn these into passes to satisfy a completion target.
+- Support explicitly configured WSL Docker transport through argument vectors; do not expose an unauthenticated Docker TCP socket. Preserve network=none, read-only source, dropped capabilities and unprivileged scanner UID.
+- Trivy's pinned version opens its public BoltDB read/write. Give it a disposable, size-limited private copy, not a writable source or writable shared database. Keep public DB updates outside evaluations.
+- Retain all advisories for every OSV-inventoried package; check final package coverage and snapshot hashes. A scoped DB cannot silently evaluate an unseen dependency. OSV uses a bounded 2 GiB/240-second limit; the scoped real scan completed in about two seconds.
+- Scanner scan time excludes provisioning. Report package/advisory matches rather than adding overlapping scanner counts into a supposed unique vulnerability number. No source-only audit establishes chatbot behavior quality or control effectiveness.

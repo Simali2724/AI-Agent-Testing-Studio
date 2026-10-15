@@ -199,7 +199,19 @@ def start(request: Assessment, original: dict | None = None) -> dict:
 async def execute(run: dict, request: Assessment, config: Settings, stop: asyncio.Event) -> None:
     started = time.monotonic()
     run["status"] = "running"
-    white = WhiteEngine()
+    checkpoint(run)
+
+    def source_progress(findings: list[Finding]) -> None:
+        record_findings(run, findings)
+        governance.append(
+            run,
+            "scanner_progress",
+            tests=[f.test_id for f in findings],
+            tools=sorted({f.tool for f in findings if f.tool}),
+        )
+        checkpoint(run)
+
+    white = WhiteEngine(on_progress=source_progress)
     gray = GrayEngine(config, run["id"], request.private_cloud_opt_in, stop)
 
     def attach(ident: str) -> None:
@@ -216,6 +228,7 @@ async def execute(run: dict, request: Assessment, config: Settings, stop: asynci
 
     async def mode_job(mode: str) -> None:
         run["engine_status"][mode] = "running"
+        checkpoint(run)
         plans = []
         for slot, fields in enumerate(run["inputs"]):
             if mode == "black" and slot:

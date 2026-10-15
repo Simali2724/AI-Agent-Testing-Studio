@@ -150,6 +150,10 @@
         r.confidence,
       ]),
     );
+    const sourceChecks = run.findings.filter((f) => f.mode === "white");
+    const sourceSummary = sourceChecks.length
+      ? `<p><strong>White-box execution: ${sourceChecks.filter((f) => f.details?.scanner_completed).length}/${sourceChecks.length} checks completed by scanners.</strong> ${sourceChecks.filter((f) => f.verdict === "not_tested" && f.details?.scanner_completed).length} completed checks have insufficient control evidence and remain Not tested. Exists means a declaration was found; it does not prove the control works.</p>`
+      : "";
     $("assurance-content").innerHTML =
       `<p><strong>${esc(c.assurance)} evidence modes · ${esc(c.verdict)}</strong></p><p>${esc(c.reason)} ${esc(c.assurance_note)}</p><p>${esc(run.status)} · ${esc(
         Object.entries(run.engine_status)
@@ -163,6 +167,7 @@
         .join(
           "",
         )}<details><summary>Governance and informational mapping</summary><p>Private cloud opt-in: ${run.private_cloud_opt_in ? "On" : "Off: local only"}. Uploads: ${run.uploads_deleted ? "Deleted" : "Retained per setting; shared inputs may remain for another assessment"}.</p><pre>${esc(JSON.stringify({ cards: run.model_cards, inputs: run.input_hashes, mapping: c.mapping, audit: run.audit }, null, 2))}</pre></details>`;
+    if (sourceSummary) $("assurance-content").insertAdjacentHTML("afterbegin", sourceSummary);
     root.querySelectorAll("[data-review]").forEach(
       (button) =>
         (button.onclick = async () => {

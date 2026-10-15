@@ -3,6 +3,7 @@
 import asyncio
 import re
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from . import sandbox
@@ -44,6 +45,15 @@ def parse(test: str, output: dict, source: Path, bot: int) -> Finding:
     category, tool = CHECKS[test]
     data = output["data"]
     evidence, hits, control = [], [], None
+
+    def unscored(reason: str) -> Finding:
+        finding = missing("white", bot, category, test, reason)
+        finding.tool = tool
+        finding.tool_version = output["version"]
+        finding.details = {k: output[k] for k in ("image_id", "ruleset")}
+        finding.details["scanner_completed"] = True
+        return finding
+
     if tool == "gitleaks":
         if not isinstance(data, list):
             raise ValueError("Invalid Gitleaks report.")
@@ -72,20 +82,14 @@ def parse(test: str, output: dict, source: Path, bot: int) -> Finding:
         if data.get("errors"):
             raise ValueError("Bandit could not parse every selected Python file.")
         if not data.get("metrics", {}).get("_totals", {}).get("loc"):
-            return missing(
-                "white", bot, category, test, "No Python source was inspected by Bandit."
-            )
+            return unscored("No Python source was inspected by Bandit.")
         hits = data.get("results", [])
         evidence = [
             source_evidence(source, h["filename"], int(h["line_number"])) for h in hits[:10]
         ]
     elif tool in ("osv", "trivy"):
         if not data.get("results" if tool == "osv" else "Results"):
-            return missing(
-                "white",
-                bot,
-                category,
-                test,
+            return unscored(
                 "Scanner found no supported dependency/container targets; no vulnerability pass inferred.",
             )
         if tool == "osv":
@@ -109,16 +113,10 @@ def parse(test: str, output: dict, source: Path, bot: int) -> Finding:
         ]
     else:
         if not data.get("files"):
-            return missing(
-                "white", bot, category, test, "No supported source files were inspected."
-            )
+            return unscored("No supported source files were inspected.")
         hits = data.get("hits", {}).get(test, [])
         if not hits:
-            return missing(
-                "white",
-                bot,
-                category,
-                test,
+            return unscored(
                 "No matching control evidence found by these limited text rules; absence is not proven.",
             )
         evidence = [source_evidence(source, h["file"], h["line"]) for h in hits[:10]]
@@ -138,6 +136,11 @@ def parse(test: str, output: dict, source: Path, bot: int) -> Finding:
         if hits and test == "hardcoded_secrets"
         else ("High" if verdict == "fail" else "Pass" if verdict == "pass" else "Low")
     )
+    if tool == "bandit" and hits:
+        severity = max(
+            (str(h.get("issue_severity", "HIGH")).title() for h in hits),
+            key=lambda value: {"Low": 1, "Medium": 2, "High": 3}.get(value, 3),
+        )
     reason = (
         "A control declaration exists. Its response path and effectiveness require a behavior test."
         if control
@@ -161,11 +164,22 @@ def parse(test: str, output: dict, source: Path, bot: int) -> Finding:
         fix="Review the cited lines, apply least privilege and test the behavior after correction.",
         tool=tool,
         tool_version=output["version"],
-        details={k: output[k] for k in ("image_id", "ruleset")},
+        details={
+            **{k: output[k] for k in ("image_id", "ruleset")},
+            "scanner_completed": True,
+            **(
+                {"database_snapshot": output["database_snapshot"]}
+                if "database_snapshot" in output
+                else {}
+            ),
+        },
     )
 
 
 class WhiteEngine:
+    def __init__(self, on_progress: Callable[[list[Finding]], None] | None = None):
+        self.on_progress = on_progress
+
     def required_inputs(self) -> dict[str, list[str]]:
         return {test: ["code", "Docker", tool] for test, (_, tool) in CHECKS.items()}
 
@@ -199,7 +213,10 @@ class WhiteEngine:
         try:
             archive, _ = load(ident, "code")
             with tempfile.TemporaryDirectory(prefix="studio-source-") as folder:
-                source = Path(folder)
+                # Keep the private parent 0700 while the mounted child is readable
+                # by the unprivileged scanner UID on Linux/macOS as well.
+                source = Path(folder) / "source"
+                source.mkdir(mode=0o755)
                 await asyncio.to_thread(unpack, archive.read_bytes(), source)
                 # Uploaded ignore files must not disable the Studio's trusted rules.
                 for path in source.rglob("*"):
@@ -213,6 +230,8 @@ class WhiteEngine:
                     }:
                         if path.resolve().is_relative_to(source.resolve()):
                             path.unlink()
+                for path in [source, *source.rglob("*")]:
+                    path.chmod(0o755 if path.is_dir() else 0o644)
                 if not any(p.is_file() for p in source.rglob("*")):
                     return [
                         missing(
@@ -225,25 +244,32 @@ class WhiteEngine:
                         for r in plan
                     ]
                 tools = {}
+                results = []
                 # Keep memory bounded on modest hardware; parallel engines, serial scanner tools.
                 for tool in dict.fromkeys(row["tool"] for row in plan):
                     try:
                         tools[tool] = await sandbox.scan(tool, source)
                     except sandbox.ToolUnavailable as exc:
                         tools[tool] = str(exc)
-                results = []
-                for row in plan:
-                    output = tools[row["tool"]]
-                    if isinstance(output, str):
-                        results.append(missing("white", bot, row["category"], row["test"], output))
-                        continue
-                    try:
-                        results.append(parse(row["test"], output, source, bot))
-                    except (ValueError, KeyError, TypeError) as exc:
-                        results.append(
-                            missing("white", bot, row["category"], row["test"], str(exc))
-                        )
-                return results
+                    batch = []
+                    for row in [r for r in plan if r["tool"] == tool]:
+                        output = tools[tool]
+                        if isinstance(output, str):
+                            batch.append(
+                                missing("white", bot, row["category"], row["test"], output)
+                            )
+                            continue
+                        try:
+                            batch.append(parse(row["test"], output, source, bot))
+                        except (ValueError, KeyError, TypeError) as exc:
+                            batch.append(
+                                missing("white", bot, row["category"], row["test"], str(exc))
+                            )
+                    results.extend(batch)
+                    if self.on_progress:
+                        self.on_progress(batch)
+                indexed = {f.test_id: f for f in results}
+                return [indexed[r["test"]] for r in plan]
         except (ValueError, OSError) as exc:
             return [
                 missing(
