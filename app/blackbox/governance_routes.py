@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/studio")
 
 
 class Reproduce(BaseModel):
+    ownership_confirmed: bool = False
     judges: list[JudgeSelection] | None = None
     target_tokens: list[str | None] = Field(default_factory=list, max_length=4)
 
@@ -112,6 +113,7 @@ async def reproduce(ident: uuid.UUID, update: Reproduce):
     if not original.get("protocol_snapshot"):
         raise HTTPException(422, "This legacy run lacks a full reproducible protocol snapshot")
     cfg = Settings.model_validate(original["config"])
+    cfg.ownership_confirmed = update.ownership_confirmed or cfg.ownership_confirmed
     if update.judges is not None:
         # Same settings means same selected models; credentials may be re-entered.
         if [j.model_dump(exclude={"token"}) for j in update.judges] != [
@@ -164,4 +166,7 @@ async def retention_worker() -> None:
 
     while True:
         expire_runs(set(ACTIVE))
+        from ..assurance.service import expire
+
+        expire()
         await asyncio.sleep(3600)

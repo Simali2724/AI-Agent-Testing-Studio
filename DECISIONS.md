@@ -224,3 +224,12 @@ Formatting code does not establish an unimplemented capability.
 - Keep current evaluation drafts when viewing saved results. Reusing a saved configuration is an explicit action; matching target settings are required before resuming with entered credentials. Navigation and refresh must not start or reproduce an evaluation.
 - Prioritize score, coverage, category comparison, cost and evidence. Insert transcript bodies when a category is opened, preserving expanded evidence on refresh. Keep raw audit, timing and framework details expandable; scoring and governance API contracts remain unchanged.
 - Verified: 25 focused Python regressions and 9 executable navigation tests passed; all 22 JavaScript files parsed, Prettier and Ruff checks passed. Browser confirmed bookmark compatibility, saved-run switching, draft preservation, lazy transcripts and refresh. Historical scores/costs were displayed without new paid calls. UI changes require a browser reload, not a backend restart.
+
+## 2026-10-15 — optional gray/white assurance
+
+- Latest request supersedes the earlier black-only restriction: keep the Black engine and add opt-in Gray/White plug-ins. Source is read, never executed. A ZIP is not a running bot.
+- Reuse the existing connectors, metering, audit journal and judge panel. No duplicate LLM/framework stack. Ownership is recorded before public starts/resumes; private Gray payloads are hashed in audit requests, not copied into the audit log. Cloud private-input review is separately opted in per run.
+- Use pinned scanner images and trusted local rules, with no auto-pull/network during scanning. Actual image IDs and runtime versions are recorded. Missing scanners/databases/classifiers cannot become passes. Custom declaration rules do not prove dataflow, authorization effectiveness or successful CI.
+- Link findings by bot/category with explicit uncertainty, never infer a code cause from behavior alone. Full describes selected evidence modes, not certification or complete coverage.
+- Preserve original overridden findings, source hashes and anchored state hashes. Raw source uploads stay private until their retention expires; report secret findings contain only tails. Regex redaction is not comprehensive anonymization.
+- Keep the fixed benchmark threshold. Both baseline and modified code fail it on the current host; profiling/further performance work remains open instead of inflating the baseline.

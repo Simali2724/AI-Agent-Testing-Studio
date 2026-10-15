@@ -8,6 +8,8 @@
     <script defer src="/shell.js"></script>
     <script defer src="/simple.js"></script>
     <script defer src="/governance.js"></script>
+    <script defer src="/assurance.js"></script>
+    <script defer src="/assurance-governance.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -51,6 +53,16 @@
         <section aria-labelledby="bots-heading">
           <h2 id="bots-heading"><span class="step">1</span>Add your bots</h2>
           <p>Paste a chat link or API endpoint. Add another bot to compare them.</p>
+          <fieldset>
+            <legend>What would you like to test?</legend>
+            <label><input type="checkbox" data-mode="black" checked /> Black — chat behavior</label>
+            <label
+              ><input type="checkbox" data-mode="gray" /> Gray — prompt, knowledge and traces</label
+            >
+            <label
+              ><input type="checkbox" data-mode="white" /> White — read-only source checks</label
+            >
+          </fieldset>
           <div id="bots"></div>
           <button id="add-bot" type="button" disabled>+ Add another bot</button>
         </section>
@@ -124,6 +136,29 @@
             </details>
           </details>
           <label class="consent"
+            ><input type="checkbox" id="ownership" />I own these bots and code, or have written
+            permission to test them.</label
+          >
+          <details>
+            <summary>Private inputs and retention</summary>
+            <p>
+              Gray inputs use a local judge by default. Source code is read only by local scanners.
+              Missing tools produce Not tested results.
+            </p>
+            <label
+              ><input type="checkbox" id="private-cloud" />For this run, allow selected cloud judges
+              to review redacted Gray inputs.</label
+            >
+            <label
+              >Keep private uploads after this run (days; 0 deletes immediately)<input
+                id="upload-retention"
+                type="number"
+                min="0"
+                max="30"
+                value="0"
+            /></label>
+          </details>
+          <label class="consent"
             ><input type="checkbox" id="consent" />Allow test messages and let the selected judges
             read answers and supplied reference facts. Calls may incur provider charges.</label
           >
@@ -144,6 +179,35 @@
           <h1 tabindex="-1">Your evaluation results</h1>
           <p>See the overall result, compare checks, then open the evidence.</p>
         </div>
+        <section id="assurance-results" aria-label="Multi-mode assessment">
+          <h2>Evidence and assurance</h2>
+          <label
+            >Saved assessments<select id="assurance-saved">
+              <option value="">Select assessment</option>
+            </select></label
+          >
+          <p id="assurance-status">Select modes on Evaluate to start an assessment.</p>
+          <div class="actions" aria-label="Evidence modes">
+            <button data-assurance-tab="black" type="button">Black</button>
+            <button data-assurance-tab="gray" type="button">Gray</button>
+            <button data-assurance-tab="white" type="button">White</button>
+            <button data-assurance-tab="combined" type="button" aria-pressed="true">
+              Combined
+            </button>
+          </div>
+          <label
+            ><input id="assurance-hinglish" type="checkbox" />Hinglish headings and guidance</label
+          >
+          <div class="actions">
+            <button id="assurance-json" type="button">Export JSON</button
+            ><button id="assurance-pdf" type="button">Export PDF</button>
+            <button id="assurance-stop" type="button">Stop assessment</button
+            ><button id="assurance-resume" type="button">Resume assessment</button
+            ><button id="assurance-reproduce" type="button">Reproduce</button>
+            <button id="assurance-delete" type="button">Delete assessment</button>
+          </div>
+          <div id="assurance-content"></div>
+        </section>
         <section aria-label="Evaluation summary">
           <div class="section-heading">
             <h2>Overview</h2>

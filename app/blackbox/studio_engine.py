@@ -85,12 +85,17 @@ def cases(config: Settings) -> list[dict]:
 
 
 def judge_config(config: Settings, entry: JudgeSelection) -> Settings:
-    selected = config.model_copy(deep=True)
+    # Change scalar selection fields only; never deep-copy live locks/Futures.
+    selected = config.model_copy()
     selected.judge_url = entry.url
     selected.judge_model = entry.model
     selected.judge_token = entry.token
     selected.judge_model_alias = entry.price_alias or entry.model
     selected.judge_local_model = entry.local
+    if entry.local:
+        selected.timeout = max(config.timeout, config.local_judge_timeout)
+        selected.judge_concurrency = 1
+        selected.judge_batch_size = 1
     selected.secondary_judge_enabled = False
     selected.simple_mode = False
     return selected
@@ -139,12 +144,20 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
         }
     entries = list(config.judges)
     primary = [j for j in entries if not j.fallback]
-    fallback = [j for j in entries if j.fallback and j.local]
+    from .judge_recovery import blocked_reason, local_fallbacks, mark_unavailable
+
+    fallback = [j for j in entries if j.local and j.fallback] or config._discovered_fallbacks
 
     async def collect(entry):
         verdicts, failures = [], []
         candidates = [entry, *fallback]
         for index, candidate in enumerate(candidates):
+            if reason := blocked_reason(config, candidate):
+                failures.append({"model": candidate.model, "reason": reason})
+                audit(run, "judge_cooldown", case=case["id"], model=candidate.model, reason=reason)
+                if index == 0 and len(candidates) == 1:
+                    candidates.extend(await local_fallbacks(config))
+                continue
             try:
                 presented = ordered_observation(case, observation, config.seed, candidate.model)
                 audit(
@@ -204,7 +217,18 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
                         ),
                     }
                 )
+            reason = failures[-1]["reason"]
+            mark_unavailable(
+                config,
+                candidate,
+                reason,
+                any(
+                    word in reason.lower() for word in ("quota", "balance", "billing", "401", "403")
+                ),
+            )
             audit(run, "judge_unavailable", case=case["id"], **failures[-1])
+            if index == 0 and len(candidates) == 1:
+                candidates.extend(await local_fallbacks(config))
         return verdicts, failures
 
     from .runner import joined
@@ -299,6 +323,8 @@ def summarize(run: dict) -> None:
                     ),
                     "planned": len(rows),
                     "tested": len(measured),
+                    "confidence": "Low" if len(measured) * 2 < len(rows) else "Limited",
+                    "low_confidence": len(measured) * 2 < len(rows),
                     "score": round(sum(measured) / len(rows), 2) if rows else 0,
                     "quality": round(statistics.mean(measured), 2) if measured else None,
                     "spread": round(max(measured) - min(measured), 2) if measured else None,

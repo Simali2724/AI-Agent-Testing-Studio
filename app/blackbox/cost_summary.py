@@ -26,7 +26,7 @@ def totals(rows):
         "cached_input_tokens": sum(r["cached_input_tokens"] for r in rows),
         "output_tokens": sum(r["output_tokens"] + r["reasoning_tokens"] for r in rows),
         "reasoning_tokens": sum(r["reasoning_tokens"] for r in rows),
-        "cost_micro_usd": None if unknown else pricing.micro(exact),
+        "cost_micro_usd": None if unknown or not rows else pricing.micro(exact),
         "known_cost_micro_usd": pricing.micro(exact),
         "exact_micro_usd": str(exact),
         "unknown_calls": unknown,
@@ -50,8 +50,15 @@ def totals(rows):
     }
 
 
-def money(value):
-    return "Unknown" if value is None else "$" + format(Decimal(value) / 1000000, ".6f")
+def money(value, local=False):
+    if value is None:
+        return "Unknown"
+    amount = Decimal(value) / 1000000
+    if amount == 0 and local:
+        return "$0 (local)"
+    if 0 < amount < Decimal("0.0001"):
+        return "<$0.0001"
+    return "$" + format(amount, ".6f")
 
 
 def summarize(run):

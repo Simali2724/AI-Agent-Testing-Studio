@@ -51,7 +51,7 @@ def generate_pdf(run):
             )
             for category in bot["categories"]:
                 paragraph(
-                    f"{category['name']}: index {category['score']}%; tested quality {category['quality']}; {category['tested']}/{category['planned']} scored; repeat spread {category['spread']} points"
+                    f"{category['name']}: index {category['score']}%; tested quality {category['quality']}; {category['tested']}/{category['planned']} scored; repeat spread {category['spread']} points; {'Low confidence' if category.get('low_confidence') else 'Limited-sample estimate'}"
                 )
         paragraph("Audit log", "Heading2")
         paragraph(json.dumps(run.get("audit", []), ensure_ascii=False))

@@ -271,6 +271,7 @@ def test_api_allows_multiple_runs_but_caps_and_rejects_duplicate_resume(monkeypa
     with TestClient(api.app) as client:
         h = {"X-Studio-Request": "1"}
         payload = config().model_dump(mode="json")
+        payload["ownership_confirmed"] = True
         ids = []
         for _ in range(api.MAX_ACTIVE_RUNS):
             response = client.post("/api/blackbox/runs", json=payload, headers=h)

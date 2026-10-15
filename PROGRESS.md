@@ -130,3 +130,39 @@ User authorized the safest restart/resume so all cases continue. Run `1dbd9014-5
 
 - Final UI checks: all 22 JavaScript files parsed; Prettier, Ruff lint and changed Python formatting passed. Browser console had no errors. Saved visual proof under the C: workspace `comparison-reports/studio-unified-results.png` and `studio-unified-governance.png`. No backend restart was required.
 - Final visual correction: direct view anchors reserve space for the sticky header, keeping the page title visible after reload or bookmark navigation.
+
+## 2026-10-15 — Phase 0: black-box recovery and honest display
+
+- Restore commit d5c08bf; unrelated .gitattributes change preserved.
+- Installed-only local judge discovery is lazy after failure. Run-scoped quota/auth cooldown avoids repeatedly billing a broken provider; key changes create a new identity. Local model timeout is configurable. Private runtime locks are not deep-copied into judge configurations.
+- Retained bot answers can be judged even when target discovery is offline; timed-out conversations retain successful prefixes. SDK/tokenizer imports/counting run off the event loop. Automatic restart can use local fallback when a cloud credential is absent.
+- Empty billing evidence stays Unknown; tiny positive costs display <$0.0001 and local-only zero API costs are labeled. Categories below half scored coverage get Low confidence.
+- Historical local benchmark d55be5cf-d8e0-4a31-a00f-d6f3467abc05 last verified 8/34 live outcomes scored, 36 records including two derived rows. Listeners were subsequently absent. No completed score is claimed.
+
+## 2026-10-15 — Phases 1/2: optional assurance plug-ins and shared UI
+
+- Added app/assurance contracts, planner, Black adapter, Gray checks and read-only White scanner adapters. Only selected engines run; missing tools/inputs have explicit findings. Plans and findings are sealed into the existing anchored audit chain.
+- Added mode tabs and Combined classification, four-part evidence explanations, severity/review queue, original-preserving false-positive review, private-input cloud opt-in, input hashes, retention/delete, JSON/PDF and same-config reproduction.
+- Gray extracts each explicit policy rule into its own check. Editable templates: app/studio/gray-v1.json. Correlated synthetic canary logs can be attached after the chat; old run IDs cannot score a new run. HHEM is a separate optional metric, never faked by a rubric score.
+- White never imports/builds/executes uploaded code. ZIP intake limits paths, expansion, files and time. Docker scanner execution is read-only/networkless/resource bounded with pinned tools, runtime version checks, inspected image IDs, bounded output and cleanup on timeout. No Docker/tool/database means Not tested. Gitleaks findings show only credential tails, never secret-containing lines.
+- Ownership is required on both new and legacy public start/resume paths. Existing history and old protocols remain intact.
+
+## Verification for this upgrade (latest details in HANDOFF)
+
+- Earlier focused black-box/cost/recovery selection: 35 passed.
+- New engine/combiner/privacy/sandbox tests initially: 31 passed. Later API/UI/recovery selection: 49 passed, including isolated headless White-only UI without any real bot/provider calls. Further tests added for rule expansion, fresh-canary correlation, finding tampering and offline-target cached rejudging; final result to be appended.
+- Timing gate was NOT relaxed: staged isolated median 2.281 s versus fixed 1.2 s. The restore-point code also failed, median 1.984 s, on this host. This is an open performance verification issue, not a passing check. Classifier weights, real scanner containers/databases and native macOS/Linux execution remain integration tasks.
+
+## Final focused source verification
+
+- 112 tests passed (128.14 s), one existing Starlette/httpx deprecation warning. Includes all mode combinations, masking/limits, local-only defaults, canary correlation, state tampering, cached offline-target rejudging, ownership/capacity, costs, audit/recovery and isolated Chromium UI/Governance. No paid evaluation was started by these tests.
+- Ruff check/format passed for app/tests (74 files); new JavaScript syntax and changed frontend/doc formatting passed. Timing gate remains open as recorded above; no claim of full-suite green or production certification.
+
+## Installed/runtime checkpoint after verification
+
+- All 45 reviewed files installed into D:/AI-Agent-Testing-Studio with content-hash verification. Existing .gitattributes edit left untouched. Installed Ruff lint/format passed; 9 Node navigation tests passed. A final assurance/UI subset passed 38 tests after the informational capability route slash correction. Counts overlap the 112-test focused run.
+- Studio PID15324/session55277, Ollama PID7988 and Reliance backend PID13692 were healthy at launch. STUDIO_AUTO_RESUME=0. Existing local llama3.2:3b warmed with an empty prompt; no new quality case/provider bill was introduced by warming.
+- SAME run d55be5cf-d8e0-4a31-a00f-d6f3467abc05 resumed with ownership_confirmed=true. Eight scored cases preserved, 28 pending records at resume (including two derived). Latest verified progress: RUNNING, 9/34 live outcomes scored, stage Age, 36 total records. Bot ledger $0 API; judge total temporarily Unknown while a request is in flight. No complete benchmark, final quality score or winner is claimed.
+- Do not restart the running benchmark for the final informational /api/assurance/capabilities route correction. Source is corrected; that optional endpoint becomes available on the next SAFE backend restart. Main UI does not depend on it.
+- Remaining assurance work includes actual scanner/database/classifier integrations; broader semantic/control-flow coverage; cross-run model-version baselines; and freezing/checking scanner config/rules across reproduction (current reproduction freezes protocol/private input hashes, not an immutable scanner image/rules snapshot). Preserve these limits in product claims. Legacy old-run settings can omit newly added runtime defaults (notably local judge timeout 240); do not claim bit-identical reproduction of pre-upgrade execution.
+- Source changes are prepared for a scoped local implementation commit; inspect git log for its SHA. No GitHub push was performed.

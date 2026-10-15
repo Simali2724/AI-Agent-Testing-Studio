@@ -118,6 +118,7 @@ function configuration() {
     targets,
     judges: judges(),
     consent: $("consent").checked,
+    ownership_confirmed: $("ownership").checked,
     judge_consent: $("consent").checked,
     simple_mode: true,
     repeat_counts: Object.fromEntries(
@@ -133,7 +134,17 @@ function configuration() {
     retention_days: Number($("retention").value),
   };
 }
-const money = (n) => (n == null ? "Unknown" : "$" + (n / 1000000).toFixed(6));
+const money = (n, local = false) => {
+  if (n == null) return "Unknown";
+  if (n === 0 && local) return "$0 (local)";
+  return n > 0 && n < 100 ? "<$0.0001" : "$" + (n / 1000000).toFixed(6);
+};
+const costMoney = (row) =>
+  row?.cost_micro_usd != null &&
+  Number(row.exact_micro_usd) > 0 &&
+  Number(row.exact_micro_usd) < 100
+    ? "<$0.0001"
+    : money(row?.cost_micro_usd, row?.calls > 0 && row.local_calls === row.calls);
 function table(head, rows) {
   return `<div class="scroll"><table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
@@ -263,7 +274,7 @@ function render(run) {
           esc(caseName(item)),
           ...groups.map(
             (g) =>
-              `${g.score}% ${bar(g.score, 100)}<small>${g.tested}/${g.planned} scored; measured quality: ${g.quality == null ? "Not measured" : g.quality + "%"}; largest within-case repeat spread: ${g.repeat_spread ?? g.spread ?? "Unknown"} points</small>`,
+              `${g.low_confidence ? '<span class="pill">Low confidence</span> ' : ""}${g.score}% ${bar(g.score, 100)}<small>${g.tested}/${g.planned} scored; measured quality: ${g.quality == null ? "Not measured" : g.quality + "%"}; largest within-case repeat spread: ${g.repeat_spread ?? g.spread ?? "Unknown"} points</small>`,
           ),
           esc(
             !complete
@@ -309,9 +320,9 @@ function render(run) {
     const maxCost = Math.max(1, ...rows.map((r) => r.cost_micro_usd || 0));
     $("costs").innerHTML =
       '<div class="cost-summary"><span>Bot cost <strong>' +
-      money(costs.bot?.cost_micro_usd) +
+      costMoney(costs.bot) +
       "</strong></span><span>Judge cost <strong>" +
-      money(costs.evaluation?.cost_micro_usd) +
+      costMoney(costs.evaluation) +
       "</strong></span></div>" +
       table(
         [
@@ -329,11 +340,11 @@ function render(run) {
           r.output_tokens,
           r.reasoning_tokens || 0,
           bar(r.input_tokens + r.output_tokens, max),
-          money(r.cost_micro_usd),
+          costMoney(r),
           r.cost_micro_usd == null ? "Unknown" : bar(r.cost_micro_usd, maxCost),
         ]),
       ) +
-      `<p>Bot total: ${money(costs.bot?.cost_micro_usd)}. Evaluation total: ${money(costs.evaluation?.cost_micro_usd)}. Hidden bot calls require its own telemetry. Token totals can include estimates for failed or opaque calls; JSON records each source.</p>`;
+      `<p>Bot total: ${costMoney(costs.bot)}. Evaluation total: ${costMoney(costs.evaluation)}. Hidden bot calls require its own telemetry. Token totals can include estimates for failed or opaque calls; JSON records each source.</p>`;
   } else
     $("costs").innerHTML =
       '<p class="empty-state">Cost is unavailable for this run. Missing usage is never treated as free.</p>';
@@ -555,6 +566,7 @@ $("resume").onclick = async () => {
       return;
     }
     await api(`/api/studio/runs/${runId}/resume`, {
+      ownership_confirmed: $("ownership").checked,
       judges: judges(),
       consent: $("consent").checked,
       target_tokens: [...document.querySelectorAll(".bot")].map(

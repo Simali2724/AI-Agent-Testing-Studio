@@ -56,7 +56,15 @@ async def judge_request(config, send, messages, max_output_tokens=1500):
                 case=context.get("test_case_id"),
                 model=config.judge_model,
                 attempt=attempt + 1,
-                messages=messages,
+                messages=(
+                    {
+                        "private_payload_hash": __import__("hashlib")
+                        .sha256(json.dumps(messages, sort_keys=True).encode())
+                        .hexdigest()
+                    }
+                    if context.get("mode") == "gray"
+                    else messages
+                ),
                 temperature=0,
                 max_output_tokens=max_output_tokens,
             )

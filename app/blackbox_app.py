@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import database as db
+from .assurance.routes import router as assurance_router
 from .blackbox import metering, pricing
 from .blackbox.catalog import build_cases
 from .blackbox.cost_summary import estimate
@@ -32,6 +33,9 @@ async def lifespan(app):
     from .blackbox.governance import expire_runs
 
     expire_runs(set(ACTIVE))
+    from .assurance.service import expire
+
+    expire()
     recovery_ids = []
     for run in db.all_records("blackbox"):
         if run["status"] in ("queued", "running"):
@@ -67,7 +71,20 @@ async def lifespan(app):
                     Settings.model_validate(previous["config"]), previous.get("protocol_snapshot")
                 )
                 if any(not j.local and not j.token for j in cfg.judges):
-                    raise ValueError("Re-enter missing judge credentials to resume.")
+                    from .blackbox.judge_recovery import local_fallbacks, mark_unavailable
+
+                    if not await local_fallbacks(cfg):
+                        raise ValueError(
+                            "Re-enter missing judge credentials or start local fallback to resume."
+                        )
+                    for judge in cfg.judges:
+                        if not judge.local and not judge.token:
+                            mark_unavailable(
+                                cfg,
+                                judge,
+                                "Cloud credential missing after restart; using local fallback.",
+                                True,
+                            )
                 await resume_run(uuid.UUID(ident), cfg)
             except Exception:
                 audit(
@@ -80,6 +97,12 @@ async def lifespan(app):
 
     retention_task = asyncio.create_task(retention_worker())
     yield
+    from .assurance.service import TASKS as assurance_tasks
+
+    for task in list(assurance_tasks.values()):
+        task.cancel()
+    if assurance_tasks:
+        await asyncio.gather(*list(assurance_tasks.values()), return_exceptions=True)
     from .blackbox.classifier_runtime import close_all
 
     close_all()
@@ -184,7 +207,13 @@ async def protect(request: Request, call_next):
             length = int(request.headers.get("content-length", "0"))
         except ValueError:
             return JSONResponse({"detail": "Invalid content length"}, 400)
-        limit = MAX_UPLOAD + 1048576 if request.url.path == "/api/blackbox/upload" else 1048576
+        limit = (
+            MAX_UPLOAD + 1048576
+            if request.url.path == "/api/blackbox/upload"
+            else 21 * 1024 * 1024
+            if request.url.path.startswith("/api/assurance/inputs/")
+            else 1048576
+        )
         if length > limit:
             return JSONResponse({"detail": "Request too large"}, 413)
     response = await call_next(request)
@@ -322,6 +351,10 @@ async def estimate_cost(config: Settings):
 async def easy_run(config: Settings):
     from .blackbox.easy_setup import prepare
 
+    if config.consent and not config.ownership_confirmed:
+        raise HTTPException(
+            422, "Confirm ownership or written permission before automatic testing."
+        )
     capacity()
     reservation = object()
     PREPARING.add(reservation)
@@ -347,6 +380,10 @@ def preview_run(config: Settings):
 
 @app.post("/api/blackbox/runs")
 async def start(config: Settings):
+    if not config.ownership_confirmed:
+        raise HTTPException(
+            422, "Confirm ownership or written permission before starting any evaluation."
+        )
     capacity()
     for target in config.targets:
         if target.kind == "zip":
@@ -354,7 +391,7 @@ async def start(config: Settings):
                 ident = str(uuid.UUID(target.archive_id))
             except ValueError:
                 raise HTTPException(422, "Upload a ZIP first.")
-            if not db.get("blackbox_archive", ident):
+            if not db.get("blackbox_archive", ident) and not db.get("assurance_input", ident):
                 raise HTTPException(404, "ZIP not found.")
     for target in config.targets:
         if not target.model_alias:
@@ -363,6 +400,9 @@ async def start(config: Settings):
     config.price_snapshot_id = ""
     config.cost_settings_snapshot = {}
     run = make_run(config)
+    from .blackbox.studio_engine import audit
+
+    audit(run, "ownership_confirmed", written_permission_or_owner=True)
     if config._reproduced_from:
         from .blackbox.studio_engine import audit
 
@@ -382,10 +422,13 @@ async def start(config: Settings):
 
 @app.post("/api/blackbox/runs/{ident}/resume")
 async def resume_run(ident: uuid.UUID, config: Settings):
+    if not config.ownership_confirmed:
+        raise HTTPException(422, "Confirm ownership or written permission before resuming.")
     if str(ident) in ACTIVE:
         raise HTTPException(409, "This evaluation is already running.")
     capacity()
     run = get_run(ident)
+    run["config"]["ownership_confirmed"] = True
     config.price_snapshot_id = run["config"].get("price_snapshot_id", "")
     config.cost_settings_snapshot = run["config"].get("cost_settings_snapshot", {})
     config.min_coverage = run["config"].get("min_coverage", 0.8)
@@ -680,6 +723,7 @@ def delete_run(ident: uuid.UUID):
 
 
 app.include_router(studio_router)
+app.include_router(assurance_router)
 
 app.include_router(governance_router)
 

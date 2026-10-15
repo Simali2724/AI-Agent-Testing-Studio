@@ -340,8 +340,8 @@ class Meter:
                     counts = None
                 source = "reported" if counts is not None else None
                 if counts is None:
-                    counts, source = count_text(
-                        resolved, messages, output_text(data), opaque, tokenizer
+                    counts, source = await asyncio.to_thread(
+                        count_text, resolved, messages, output_text(data), opaque, tokenizer
                     )
                 amount, cost_status = pricing.calculate(
                     counts,
@@ -417,8 +417,9 @@ async def completion(url, body, key="", timeout=30):
             bool(body.get("response_format")),
         )
     os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
-    import litellm
+    import importlib
 
+    litellm = await asyncio.to_thread(importlib.import_module, "litellm")
     litellm.telemetry = False
     litellm.suppress_debug_info = True
     provider = "anthropic" if urlsplit(url).hostname == "api.anthropic.com" else "openai"

@@ -180,6 +180,7 @@ $("start").onclick = async () => {
       judge_model: $("judge-model").value,
       judge_token: $("judge-token").value || null,
       consent: $("consent").checked,
+      ownership_confirmed: $("ownership").checked,
       judge_consent: $("judge-consent").checked,
       performance_consent: $("performance-consent").checked,
       case_concurrency: Number($("case-concurrency").value),

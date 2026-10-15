@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/studio")
 
 
 class JudgesUpdate(BaseModel):
+    ownership_confirmed: bool = False
     judges: list[JudgeSelection] = Field(min_length=1, max_length=8)
     consent: bool
     target_tokens: list[SecretStr | None] = Field(default_factory=list, max_length=4)
@@ -143,6 +144,8 @@ async def resume(ident: uuid.UUID, update: JudgesUpdate):
             "judges": update.judges,
             "consent": True,
             "judge_consent": update.consent,
+            "ownership_confirmed": update.ownership_confirmed
+            or original["config"].get("ownership_confirmed", False),
         }
     )
     if update.target_tokens:

@@ -2,6 +2,8 @@
 
 Test one chatbot or compare up to four using the same **10 categories**. Each category runs **3 repeats** by default; change the repeat number on screen.
 
+Choose **Black** for chat behavior, optionally **Gray** for declarations/knowledge/traces, and **White** for read-only source scans. Any combination is supported. Confirm ownership or written permission before testing. [Read the short assurance guide](docs/assurance-guide.md) for inputs, evidence labels, privacy and optional scanner setup.
+
 ## Start
 
 **Windows:** open PowerShell in this folder:
@@ -27,13 +29,13 @@ Open **http://127.0.0.1:2708/**.
 
 **Advanced settings** are optional, collapsed controls inside Evaluate. No separate setup page is needed. Selecting a saved result keeps your current draft; use **Load this run’s settings** to reuse its configuration.
 
-For automatic local fallback, install a model in Ollama, run `ollama serve`, and select that model as a fallback on screen. Judge fallback cannot repair an unavailable chatbot API.
+For automatic local fallback, install a model in Ollama and run `ollama serve`. On a failed judge call, Studio can discover installed text models; it never downloads weights. Explicit fallback choices take priority. Judge fallback cannot repair an unavailable chatbot API.
 
 **Not tested contributes 0 to the configured evaluation index.** Its reason and measured coverage are shown separately. An incomplete comparison has no winner. Repeats measure consistency and do not prove broad safety or fairness.
 
 Unknown usage/prices show **Unknown**, not $0. Hidden bot calls require that bot's own telemetry. Keys entered in password fields stay out of Git and reports. Never put credentials in reference facts or extra request JSON.
 
-ZIP uploads are stored safely. **An isolated ZIP execution runner is still a separate task**; start trusted bots yourself and paste their running link. Never run untrusted uploads on the host.
+ZIPs imported through White are scanned as source inside a restricted, networkless Docker sandbox. They are never executed. Start trusted bots yourself and paste their running link for behavioral checks. Missing tools or inputs are recorded as **Not tested**. Docker is optional for normal Black/Gray use.
 
 Read [the detailed simple guide](docs/simple-guide.md) for configuration, recovery and optional Docker. [Previous documentation](docs/legacy-guide.md) and the older interface at `/index.html` remain available for historical runs.
 

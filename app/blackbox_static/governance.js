@@ -126,6 +126,7 @@
   }
   el("reproduce").onclick = act(async (id) => {
     const run = await request(`/api/studio/runs/${id}/reproduce`, "POST", {
+      ownership_confirmed: document.getElementById("ownership")?.checked || false,
       judges: storedJudges.map((judge, index) => ({
         ...judge,
         token: el("credentials").querySelector(`[data-judge-key="${index}"]`)?.value || null,

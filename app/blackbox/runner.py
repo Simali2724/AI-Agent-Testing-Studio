@@ -420,7 +420,17 @@ class EvaluationExecutor:
                     "error": "Not tested: a partial web conversation cannot restore its browser state without replaying completed turns. Saved replies are retained; use a new run for a fresh conversation.",
                 }
             call_case = {**case, "resume_observation": cached} if cached else case
-            observation = await asyncio.wait_for(self.clients[i].conversation(call_case), allowance)
+            try:
+                observation = await asyncio.wait_for(
+                    self.clients[i].conversation(call_case), allowance
+                )
+            except TimeoutError:
+                prefix = read(self.run["id"], "bot", observation_key(self.config, i, case)) or {}
+                observation = {
+                    **prefix,
+                    "transcript": prefix.get("transcript", []),
+                    "error": "Conversation timeout; successful turns are checkpointed.",
+                }
             reason = str(observation.get("error") or "").lower()
             if (blocked := quota_reason(reason)) and not self.config.simple_mode:
                 error = ProviderQuotaUnavailable("Chatbot: " + blocked)
@@ -486,7 +496,9 @@ class EvaluationExecutor:
                 test_case_id=case["id"],
             ):
                 async with self.runtime.target(self.config.targets[i].url):
-                    reason = self.unavailable.get(i) or case["prerequisite"]
+                    reason = (self.unavailable.get(i) if observation is None else None) or case[
+                        "prerequisite"
+                    ]
                     if self.errors[i] >= 3 and not self.config.simple_mode:
                         reason = (
                             "Target circuit breaker opened after 3 consecutive failed conversations; "

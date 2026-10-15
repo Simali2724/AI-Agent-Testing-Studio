@@ -171,6 +171,13 @@ class JudgeSelection(BaseModel):
 
 
 class Settings(BaseModel):
+    ownership_confirmed: bool = False
+    auto_local_fallback: bool = True
+    local_judge_timeout: float = Field(default=240, ge=20, le=600)
+    _fallback_checked: bool = PrivateAttr(default=False)
+    _fallback_lock: object = PrivateAttr(default=None)
+    _discovered_fallbacks: list = PrivateAttr(default_factory=list)
+    _judge_health: dict = PrivateAttr(default_factory=dict)
     simple_mode: bool = False
     retention_days: int = Field(default=0, ge=0, le=3650)
     judge_batch_size: int = Field(default=1, ge=1, le=8)
