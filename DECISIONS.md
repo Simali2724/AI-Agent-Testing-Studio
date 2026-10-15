@@ -217,3 +217,10 @@ Formatting code does not establish an unimplemented capability.
 - Persist exact judge prompts and a versioned protocol snapshot. Model identifiers do not guarantee an immutable upstream revision; provider identifiers are retained when returned.
 - No ZIP host execution. Optional Docker hosts the Studio only. TASK: implement an isolated ZIP runner with resource/network limits and consent.
 - VERIFIED: offline scoring, fallback, live update, override, crash-recovery, cost and concurrency tests; formatter/linter and shell syntax. TASK: native Mac/Linux/Docker execution and real-model integration when providers are usable.
+
+## 2026-10-15 — simplify the Studio into one interface
+
+- Use one static application shell with Evaluate, Results and Governance views. Advanced settings are collapsed controls inside Evaluate, avoiding a second setup experience. Keep the legacy interface reachable for historical protocols; redirect existing governance bookmarks while preserving the run ID.
+- Keep current evaluation drafts when viewing saved results. Reusing a saved configuration is an explicit action; matching target settings are required before resuming with entered credentials. Navigation and refresh must not start or reproduce an evaluation.
+- Prioritize score, coverage, category comparison, cost and evidence. Insert transcript bodies when a category is opened, preserving expanded evidence on refresh. Keep raw audit, timing and framework details expandable; scoring and governance API contracts remain unchanged.
+- Verified: 25 focused Python regressions and 9 executable navigation tests passed; all 22 JavaScript files parsed, Prettier and Ruff checks passed. Browser confirmed bookmark compatibility, saved-run switching, draft preservation, lazy transcripts and refresh. Historical scores/costs were displayed without new paid calls. UI changes require a browser reload, not a backend restart.

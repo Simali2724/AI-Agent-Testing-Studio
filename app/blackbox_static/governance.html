@@ -4,62 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Governance — AI Agent Studio</title>
-    <link rel="stylesheet" href="/simple.css" />
-    <script defer src="/governance.js"></script>
+    <script defer src="/governance-redirect.js"></script>
   </head>
   <body>
-    <header><strong>AI Agent Studio — Governance</strong><a href="/">Evaluate bots</a></header>
-    <main>
-      <section>
-        <h1>Can you trust this run?</h1>
-        <p>
-          Inspect evidence, judge agreement, privacy and the audit chain. Framework mappings are
-          informational, not certification.
-        </p>
-        <label>Saved run<select id="runs"></select></label>
-        <p id="status" role="status"></p>
-        <div class="actions">
-          <button id="reproduce">Reproduce this run (new API calls)</button
-          ><a id="results">View results</a><a id="export">Export redacted JSON</a>
-        </div>
-        <details>
-          <summary>Re-enter original API keys if requested</summary>
-          <div id="credentials"></div>
-        </details>
-        <div id="integrity"></div>
-      </section>
-      <section>
-        <h2>Bots and judges</h2>
-        <div id="cards" class="grid"></div>
-        <div id="warnings"></div>
-      </section>
-      <section>
-        <h2>Data retention</h2>
-        <p>
-          0 keeps local run data until deletion. Active runs and saved baselines are protected.
-          Cleanup runs hourly and on startup. Downloaded copies cannot be deleted remotely.
-        </p>
-        <label>Retention days<input id="days" type="number" value="0" min="0" max="3650" /></label
-        ><button id="save-retention">Save retention</button>
-        <button id="delete">Delete this run and its cached data</button>
-      </section>
-      <section>
-        <h2>Audit evidence</h2>
-        <p>
-          The append-only journal detects changed records and truncation against a separate SQLite
-          anchor. It is not a digital signature: someone who can replace the entire database and
-          backups can replace the anchor too. Legacy events remain unverified. Exported transcripts
-          use regex PII redaction; names and addresses may still require review.
-        </p>
-        <details>
-          <summary>Judge prompts, errors, retries and switches</summary>
-          <pre id="audit"></pre>
-        </details>
-      </section>
-      <section>
-        <h2>Informational framework mapping</h2>
-        <div id="mapping"></div>
-      </section>
-    </main>
+    <p>Governance is now part of the Studio. <a href="/#governance">Open Studio</a></p>
   </body>
 </html>

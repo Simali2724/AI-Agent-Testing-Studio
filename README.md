@@ -22,7 +22,10 @@ Open **http://127.0.0.1:2708/**.
 1. Start your chatbot, then paste its chat page or complete API link.
 2. Choose one or more judges. Use **Show available models**, select a model and enter its API key. Saved backend settings can be reused.
 3. Set repeats, allow test messages/judge access, then click **Start evaluation**.
-4. Read scores, comparison, transcripts, token/cost charts and tables. Download PDF or JSON.
+4. Open **Results** for scores, comparison and evidence. **Tokens and cost** keeps bot and judge costs separate. Download PDF or JSON.
+5. Open **Governance** in the same screen for audit integrity and data controls. The saved evaluation stays selected across views.
+
+**Advanced settings** are optional, collapsed controls inside Evaluate. No separate setup page is needed. Selecting a saved result keeps your current draft; use **Load this run’s settings** to reuse its configuration.
 
 For automatic local fallback, install a model in Ollama, run `ollama serve`, and select that model as a fallback on screen. Judge fallback cannot repair an unavailable chatbot API.
 

@@ -193,7 +193,9 @@ def test_governance_page_and_retention_cleanup():
     governance.append(run, "completed")
     save(run, cfg)
     write(run["id"], "bot", "test", {"text": "private"})
-    assert "Can you trust this run" in TestClient(blackbox_app.app).get("/governance.html").text
+    client = TestClient(blackbox_app.app)
+    assert "governance-redirect.js" in client.get("/governance.html").text
+    assert 'id="governance"' in client.get("/").text
     assert governance.expire_runs({run["id"]}) == 0
     governance.expire_runs(set())
     assert db.get("blackbox", run["id"]) is None

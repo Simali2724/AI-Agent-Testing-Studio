@@ -5,111 +5,260 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>AI Agent Studio</title>
     <link rel="stylesheet" href="/simple.css" />
+    <script defer src="/shell.js"></script>
     <script defer src="/simple.js"></script>
+    <script defer src="/governance.js"></script>
   </head>
   <body>
-    <header>
-      <div>
-        <strong>AI Agent Studio</strong><span>Test conversations. Understand results.</span>
-      </div>
-      <nav>
-        <a href="/governance.html">Governance</a> ·
-        <a href="/index.html">Advanced / previous studio</a>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="app-header">
+      <a class="brand" href="#evaluate" data-view="evaluate">
+        <span class="brand-icon" aria-hidden="true">A</span>
+        <span><strong>AI Agent Studio</strong><small>Test. Compare. Understand.</small></span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#evaluate" data-view="evaluate" aria-controls="evaluate">Evaluate</a>
+        <a href="#results" data-view="results" aria-controls="results">Results</a>
+        <a href="#governance" data-view="governance" aria-controls="governance">Governance</a>
       </nav>
     </header>
-    <main>
+    <main id="main" tabindex="-1">
       <div id="notice" role="status" aria-live="polite"></div>
-      <section>
-        <h1>How well does your chatbot help people?</h1>
-        <p>
-          Add up to four bots, choose your judges, and start the same selected checks for each bot.
-        </p>
-        <h2>1. Add your chatbots</h2>
-        <div id="bots"></div>
-        <button id="add-bot" type="button">Add another chatbot</button>
-        <details>
-          <summary>Reference facts and safety rules (optional)</summary>
-          <label
-            >Reference facts JSON file<input
-              id="references-file"
-              type="file"
-              accept=".json" /></label
-          ><label
-            >Reference facts JSON<textarea
-              id="references"
-              placeholder='[{"prompt":"What is the price?","reference":{"price":100}}]'
-            ></textarea></label
-          ><label
-            >Safety rules<textarea
-              id="policy"
-              placeholder="A generic privacy and authorization policy is used unless you supply your own."
-            ></textarea></label
-          ><label>What should these bots help with?<input id="scope" /></label>
-        </details>
-        <h2>2. Choose judges</h2>
-        <p>
-          Tick one or more models. A local fallback must already be installed and running in Ollama.
-          Cloud Gemma and local Gemma are different connections.
-        </p>
-        <div id="judges"></div>
-        <p id="local-status"></p>
-        <datalist id="local-models"></datalist>
-        <h2>3. Set repeats</h2>
-        <p id="suite-intro">
-          Evaluation scenarios, repeated to measure consistency. Repeats do not add independent test
-          coverage.
-        </p>
-        <div id="checks" class="checks"></div>
-        <p id="planned"></p>
-        <label
-          >Keep run data (days; 0 = until you delete it)<input
-            id="retention"
-            type="number"
-            min="0"
-            max="3650"
-            value="0"
-        /></label>
-        <label class="consent"
-          ><input type="checkbox" id="consent" />Allow test messages and let the selected judges
-          read answers and supplied reference facts. Calls may incur provider charges.</label
-        >
-        <div class="actions">
-          <button id="start" class="primary">Start evaluation</button
-          ><button id="apply-judges">Change judges for active run</button
-          ><button id="resume">Resume missing cases</button><button id="stop">Stop</button>
+      <div class="run-toolbar" id="run-toolbar" hidden>
+        <div class="run-picker">
+          <label for="selected-run">Saved evaluation</label
+          ><select id="selected-run">
+            <option value="">Choose a saved run</option>
+          </select>
         </div>
-        <p>
-          Unknown bot token usage or prices stay “Unknown”. A failed chatbot provider needs fixing
-          separately from the judge. ZIP uploads are stored safely; automatic ZIP execution is
-          unavailable until an isolated runner is configured.
-        </p>
-      </section>
-      <section id="results">
-        <h2>Results</h2>
-        <p>
-          Scores are automated judge estimates on these scenarios unless marked as a human review.
-          Read the evidence before making a release decision.
-        </p>
-        <p id="stage">No run yet.</p>
-        <progress id="progress" max="100" value="0"></progress>
-        <div id="verdict"></div>
-        <div id="scores"></div>
-        <div id="live-progress" aria-live="polite"></div>
-        <div id="bias-details"></div>
-        <div id="integrity"></div>
-        <div id="relevance-charts"></div>
-        <div id="costs"></div>
-        <div id="case-results"></div>
-        <details>
-          <summary>Audit log and governance</summary>
-          <div id="audit"></div>
+        <span id="run-label" class="pill">No run selected</span>
+        <div class="actions">
+          <button id="refresh-run" type="button">Refresh</button>
+          <button id="resume" type="button" disabled>Resume missing cases</button>
+          <button id="stop" class="danger-quiet" type="button" disabled>Stop run</button>
+        </div>
+      </div>
+      <div id="evaluate" data-panel="evaluate">
+        <div class="page-heading">
+          <p class="eyebrow">EVALUATE</p>
+          <h1 tabindex="-1">Test and compare chatbots</h1>
+          <p>Add your bots, choose a judge, then run your tests.</p>
+          <div class="feature-notes">
+            <span>1–4 chatbots</span><span>Same tests for every bot</span
+            ><span>Scores with evidence</span>
+          </div>
+        </div>
+        <section aria-labelledby="bots-heading">
+          <h2 id="bots-heading"><span class="step">1</span>Add your bots</h2>
+          <p>Paste a chat link or API endpoint. Add another bot to compare them.</p>
+          <div id="bots"></div>
+          <button id="add-bot" type="button" disabled>+ Add another bot</button>
+        </section>
+        <section aria-labelledby="judges-heading">
+          <h2 id="judges-heading"><span class="step">2</span>Choose your judge</h2>
+          <p>
+            Select one or more models to score the answers. Open a model card to change its key or
+            model.
+          </p>
+          <div id="judges" class="judge-grid"></div>
+          <details class="subtle-details">
+            <summary>Local fallback status</summary>
+            <p id="local-status"></p>
+            <p>
+              A local fallback must be installed and running in Ollama. Cloud Gemma uses a separate
+              connection.
+            </p>
+          </details>
+          <datalist id="local-models"></datalist>
+        </section>
+        <section aria-labelledby="tests-heading">
+          <h2 id="tests-heading"><span class="step">3</span>Run your tests</h2>
+          <p id="suite-intro">
+            All ten categories are included. Repeat each test to check consistency.
+          </p>
+          <div id="test-preview" class="test-preview"></div>
+          <details>
+            <summary>Customize test repeats</summary>
+            <p>Each repeat makes a fresh conversation. More repeats use more time and tokens.</p>
+            <div id="checks" class="checks"></div>
+          </details>
+          <p id="planned" class="helper"></p>
+          <details id="advanced-settings">
+            <summary>Advanced settings <span class="muted">— optional</span></summary>
+            <p>Use these only to supply your own facts, safety rules or data retention.</p>
+            <div class="grid">
+              <div>
+                <label
+                  >Reference facts JSON file<input
+                    id="references-file"
+                    type="file"
+                    accept=".json" /></label
+                ><label
+                  >Reference facts JSON<textarea
+                    id="references"
+                    placeholder='[{"prompt":"What is the price?","reference":{"price":100}}]'
+                  ></textarea>
+                </label>
+              </div>
+              <div>
+                <label
+                  >Safety rules<textarea
+                    id="policy"
+                    placeholder="A generic privacy and authorization policy is used unless you supply your own."
+                  ></textarea></label
+                ><label>What should these bots help with?<input id="scope" /></label>
+              </div>
+            </div>
+            <label
+              >Keep run data (days; 0 = until you delete it)<input
+                id="retention"
+                type="number"
+                min="0"
+                max="3650"
+                value="0"
+            /></label>
+            <details>
+              <summary>Tools for older evaluations</summary>
+              <p>Older protocols remain available with their original scores.</p>
+              <a href="/index.html">Open legacy tools</a>
+            </details>
+          </details>
+          <label class="consent"
+            ><input type="checkbox" id="consent" />Allow test messages and let the selected judges
+            read answers and supplied reference facts. Calls may incur provider charges.</label
+          >
+          <div class="actions start-actions">
+            <button id="start" class="primary" disabled>Start evaluation</button
+            ><button id="apply-judges" disabled>Apply judges to active run</button>
+          </div>
+          <p class="helper">
+            ZIP uploads are accepted, but automatic ZIP execution needs an isolated runner. Until
+            then, paste the running bot’s link. Missing token usage or prices are shown as
+            “Unknown”.
+          </p>
+        </section>
+      </div>
+      <div id="results" data-panel="results" hidden>
+        <div class="page-heading">
+          <p class="eyebrow">RESULTS</p>
+          <h1 tabindex="-1">Your evaluation results</h1>
+          <p>See the overall result, compare checks, then open the evidence.</p>
+        </div>
+        <section aria-label="Evaluation summary">
+          <div class="section-heading">
+            <h2>Overview</h2>
+            <button id="use-run-settings" type="button" disabled>Load this run’s settings</button>
+          </div>
+          <div class="result-shortcuts">
+            <a href="#scores">Category scores</a><a href="#case-results">Test evidence</a
+            ><a href="#usage-section">Tokens and cost</a>
+          </div>
+          <p id="stage" role="status">Choose a saved evaluation above, or start a new test.</p>
+          <progress id="progress" aria-label="Evaluation progress" max="100" value="0"></progress>
+          <div id="verdict"></div>
+          <div class="actions" id="downloads"></div>
+          <div id="scores"></div>
+          <p class="helper">
+            Scores are estimates for these tests. Coverage shows how much was scored. Open the
+            evidence before making a release decision.
+          </p>
+          <div id="integrity"></div>
+        </section>
+        <section aria-labelledby="evidence-heading">
+          <h2 id="evidence-heading">Test evidence</h2>
+          <p>Open a category for the judge’s reason and exact conversation.</p>
+          <div id="case-results">
+            <p class="empty-state">Your test summaries and transcripts will appear here.</p>
+          </div>
+          <details id="bias-panel">
+            <summary>Bias sub-tests and paired evidence</summary>
+            <div id="bias-details"></div>
+          </details>
+        </section>
+        <section id="usage-section" aria-labelledby="usage-heading">
+          <h2 id="usage-heading">Tokens and cost</h2>
+          <p>Bot usage and judge usage are tracked separately.</p>
+          <div id="costs"><p class="empty-state">Usage will appear after an evaluation.</p></div>
+        </section>
+        <details class="panel-details">
+          <summary>More result details</summary>
+          <div id="relevance-charts"></div>
+          <details>
+            <summary>Progress and timings by category</summary>
+            <div id="live-progress"></div>
+          </details>
+          <details>
+            <summary>Score audit details</summary>
+            <div id="audit"></div>
+          </details>
         </details>
-        <div class="actions" id="downloads"></div>
-      </section>
-      <section>
-        <h2>Previous results</h2>
-        <div id="history"></div>
-      </section>
+        <details class="panel-details">
+          <summary>All saved evaluations</summary>
+          <div id="history"></div>
+        </details>
+      </div>
+      <div id="governance" data-panel="governance" hidden>
+        <div class="page-heading">
+          <p class="eyebrow">GOVERNANCE</p>
+          <h1 tabindex="-1">Trust and audit</h1>
+          <p>Check completeness, judge agreement and the evidence behind this result.</p>
+        </div>
+        <section aria-labelledby="gov-summary-heading">
+          <h2 id="gov-summary-heading">Run integrity</h2>
+          <p id="gov-status" role="status">Choose a saved evaluation to inspect its audit.</p>
+          <div id="gov-integrity"></div>
+          <div id="gov-warnings"></div>
+          <div class="actions">
+            <a class="button" href="#results" data-view="results">View results</a
+            ><a class="button" id="gov-export" hidden>Export redacted JSON</a
+            ><button id="gov-reproduce" disabled>Repeat this evaluation</button>
+          </div>
+          <p class="helper">
+            Repeating creates a new run with fresh bot calls and may incur API charges.
+          </p>
+          <details>
+            <summary>API keys for repeating this run (only if requested)</summary>
+            <div id="gov-credentials"></div>
+          </details>
+        </section>
+        <details class="panel-details">
+          <summary>Bots and judges used</summary>
+          <div id="gov-cards" class="grid"></div>
+        </details>
+        <details class="panel-details">
+          <summary>Advanced audit details</summary>
+          <div id="gov-metadata"></div>
+          <p>
+            The hash chain detects changes against a separate local anchor. It is not a digital
+            signature against replacement of the whole database. Legacy events may be unverified.
+          </p>
+          <details>
+            <summary>Judge prompts, errors, retries and switches</summary>
+            <pre id="gov-audit"></pre>
+          </details>
+        </details>
+        <details class="panel-details">
+          <summary>Privacy and data retention</summary>
+          <p>
+            Exports redact common PII patterns. Review names and addresses before sharing. Zero days
+            keeps local data until deletion; active runs and saved baselines are protected.
+          </p>
+          <label
+            >Keep data for days<input id="gov-days" type="number" value="0" min="0" max="3650"
+          /></label>
+          <div class="actions">
+            <button id="gov-save-retention" disabled>Save retention</button
+            ><button id="gov-delete" class="danger-quiet" disabled>Delete this run</button>
+          </div>
+          <p class="helper">
+            Cleanup runs hourly and on startup. Downloaded copies are unaffected.
+          </p>
+        </details>
+        <details class="panel-details">
+          <summary>Framework mapping (informational)</summary>
+          <div id="gov-mapping"></div>
+        </details>
+      </div>
     </main>
   </body>
 </html>

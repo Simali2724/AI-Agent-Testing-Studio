@@ -49,6 +49,8 @@ jobs:
         run: npm run format:check
       - name: Check JavaScript syntax
         run: npm run check:js
+      - name: Check unified Studio navigation
+        run: npm run test:ui
       - name: Run regression tests with local fixtures
         run: python -m pytest -q
       - name: Check comparison UI in an isolated workspace

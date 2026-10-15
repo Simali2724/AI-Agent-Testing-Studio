@@ -43,7 +43,7 @@ function addBot() {
   botCount++;
   $("bots").insertAdjacentHTML(
     "beforeend",
-    `<article class="bot" data-bot="${i}"><h3>Chatbot ${i + 1}</h3><div class="grid"><label>Name<input data-field="name" value="Chatbot ${i + 1}"></label><label>Chat page or full API link<input data-field="url" placeholder="https://your-bot.example/chat"></label></div><label>Or upload a ZIP<input data-field="zip" type="file" accept=".zip"></label><details><summary>Connection help (only if automatic detection needs help)</summary><div class="grid"><label>Type<select data-field="kind"><option value="auto">Detect automatically</option><option value="rest">REST API</option><option value="openai">OpenAI compatible</option><option value="web">Web chat widget</option></select></label><label>API key<input data-field="token" type="password" autocomplete="off"></label><label>Bot model / cost alias<input data-field="model"></label><label>Request message field<input data-field="message_field" value="message"></label><label>Response field<input data-field="response_field" placeholder="Detect common fields"></label><label>History field<input data-field="history_field"></label><label>Conversation ID field<input data-field="session_field" value="conversation_id"></label><label>Extra request JSON<textarea data-field="defaults">{}</textarea></label><label>Chat input selector<input data-field="input_selector"></label><label>Bot reply selector<input data-field="answer_selector"></label><label>Send button selector<input data-field="send_selector"></label></div></details><button class="remove-bot">Remove this bot</button></article>`,
+    `<article class="bot" data-bot="${i}"><h3>Chatbot ${i + 1}</h3><div class="grid"><label>Name<input data-field="name" value="Chatbot ${i + 1}"></label><label>Chat page or full API link<input data-field="url" placeholder="https://your-bot.example/chat"></label></div><label>Or upload a ZIP<input data-field="zip" type="file" accept=".zip"></label><details><summary>Advanced connection settings</summary><div class="grid"><label>Type<select data-field="kind"><option value="auto">Detect automatically</option><option value="rest">REST API</option><option value="openai">OpenAI compatible</option><option value="web">Web chat widget</option></select></label><label>API key<input data-field="token" type="password" autocomplete="off"></label><label>Bot model / cost alias<input data-field="model"></label><label>Request message field<input data-field="message_field" value="message"></label><label>Response field<input data-field="response_field" placeholder="Detect common fields"></label><label>History field<input data-field="history_field"></label><label>Conversation ID field<input data-field="session_field" value="conversation_id"></label><label>Extra request JSON<textarea data-field="defaults">{}</textarea></label><label>Chat input selector<input data-field="input_selector"></label><label>Bot reply selector<input data-field="answer_selector"></label><label>Send button selector<input data-field="send_selector"></label></div></details><button class="remove-bot">Remove this bot</button></article>`,
   );
   const card = $("bots").lastElementChild;
   card.querySelector(".remove-bot").onclick = () => {
@@ -80,7 +80,7 @@ function planned() {
     0,
   );
   $("planned").textContent =
-    `${settings.cases.length} categories; ${repeats} outcome records per bot × ${botCount} bots. Bias includes derived algorithmic records (no bot request); each other repeat makes fresh bot calls. Paired and multi-turn cases contain several messages.`;
+    `${settings.cases.length} categories · ${repeats} outcome records per bot · ${botCount} ${botCount === 1 ? "bot" : "bots"}. Bias includes a derived disparity record; pairs and multi-turn tests use several messages.`;
 }
 function judges() {
   return [...document.querySelectorAll(".judge")]
@@ -142,6 +142,17 @@ function bar(value, max) {
 }
 function render(run) {
   current = run;
+  window.StudioUI.updateRun(run);
+  $("use-run-settings").disabled = !run.config.simple_mode;
+  window.dispatchEvent(
+    new CustomEvent("studio:run-rendered", {
+      detail: {
+        id: run.id,
+        status: run.status,
+        overrides: run.cases.flatMap((c) => c.results).filter((r) => r.human_review_note).length,
+      },
+    }),
+  );
   if (hydrateRequested && run.config.simple_mode) {
     $("bots").innerHTML = "";
     botCount = 0;
@@ -189,6 +200,7 @@ function render(run) {
   const active = ["running", "queued"].includes(run.status);
   $("stop").disabled = !active;
   $("apply-judges").disabled = !active;
+  $("apply-judges").hidden = !active;
   $("resume").disabled =
     active || !run.cases.some((c) => c.results.some((r) => r.status === "not_tested"));
   const done = run.cases.filter((c) => c.completed).length;
@@ -202,25 +214,33 @@ function render(run) {
   const caseName = (item) =>
     settings.cases.find((c) => c.category === item.category)?.name || item.name;
   if (!studio) {
-    ["scores", "relevance-charts", "costs", "case-results", "audit", "downloads"].forEach(
-      (id) => ($(id).innerHTML = ""),
-    );
+    [
+      "scores",
+      "relevance-charts",
+      "costs",
+      "case-results",
+      "audit",
+      "downloads",
+      "bias-details",
+      "integrity",
+      "live-progress",
+    ].forEach((id) => ($(id).innerHTML = ""));
     $("resume").disabled = true;
     $("verdict").innerHTML =
       `<p>This is an older protocol. <a href="/index.html?run=${esc(run.id)}#results">Open its complete historical results</a>.</p>`;
     return;
   }
   $("verdict").innerHTML =
-    `<h3>${studio.winner == null ? esc(studio.confidence_note) : "Winner: " + esc(run.targets[studio.winner].name)}</h3><p>${esc(studio.confidence_note)}</p><p>${esc(studio.formula)}</p><p>${studio.warnings.map(esc).join(" ")}</p>`;
+    `<div class="verdict-card"><h3>${studio.winner == null ? (studio.bots.length === 1 ? "Evaluation summary" : "Comparison summary") : "Winner: " + esc(run.targets[studio.winner].name)}</h3><p>${esc(studio.confidence_note)}</p>${studio.warnings.length ? `<p class="unknown">${studio.warnings.map(esc).join(" ")}</p>` : ""}</div><details class="subtle-details"><summary>How to read these scores</summary><p>${esc(studio.formula)}</p><p>Not tested is missing evidence, not a failed answer. It contributes zero to this evaluation index. Measured quality and coverage are shown separately.</p></details>`;
   if (resultCases.length < settings.cases.length) {
     $("verdict").innerHTML +=
-      `<p>This saved run contains ${resultCases.length} checks. ${settings.cases.length - resultCases.length} new checks are available above; start a new evaluation to score them. Historical scores are unchanged.</p>`;
+      `<p>This saved run contains ${resultCases.length} checks. New checks are available in <a href="#evaluate" data-view="evaluate">Evaluate</a>. Historical scores are unchanged.</p>`;
   }
   $("scores").innerHTML =
     `<div class="grid">${studio.bots
       .map(
         (b) =>
-          `<article class="metric"><h3>${esc(b.name)}</h3><p>Configured evaluation index</p><div class="score">${b.score}%</div><p>${b.tested}/${b.planned} conversations scored</p><p>Strongest measured check: ${esc([...b.categories].filter((c) => c.tested).sort((a, z) => z.quality - a.quality)[0]?.name || "Not established")}<br>Check first: ${esc(
+          `<article class="metric"><h3>${esc(b.name)}</h3><span class="pill">${b.tested === b.planned ? "Fully scored" : "Partial coverage"}</span><p class="muted">Overall score</p><div class="score">${b.score}<small>/100</small></div><p><strong>${b.tested}/${b.planned}</strong> outcomes scored · ${b.planned ? Math.round((100 * b.tested) / b.planned) : 0}% coverage</p><p>Strongest measured check: ${esc([...b.categories].filter((c) => c.tested).sort((a, z) => z.quality - a.quality)[0]?.name || "Not established")}<br>Lowest category scores: ${esc(
             [...b.categories]
               .sort((a, z) => a.score - z.score)
               .slice(0, 3)
@@ -229,8 +249,9 @@ function render(run) {
           )}</p>${bar(b.score, 100)}</article>`,
       )
       .join("")}</div>` +
+    '<h3 class="chart-heading">Scores by category</h3>' +
     table(
-      ["Check", ...studio.bots.map((b) => b.name), "Category result"],
+      ["Category", ...studio.bots.map((b) => b.name), "Result"],
       resultCases.map((item) => {
         const groups = studio.bots.map((b) => b.categories.find((c) => c.id === item.category));
         const complete = groups.every((g) => g.tested === g.planned);
@@ -244,11 +265,22 @@ function render(run) {
             (g) =>
               `${g.score}% ${bar(g.score, 100)}<small>${g.tested}/${g.planned} scored; measured quality: ${g.quality == null ? "Not measured" : g.quality + "%"}; largest within-case repeat spread: ${g.repeat_spread ?? g.spread ?? "Unknown"} points</small>`,
           ),
-          esc(!complete ? "Incomplete evidence" : win.length > 1 ? "Tie" : win[0]),
+          esc(
+            !complete
+              ? "Incomplete evidence"
+              : studio.bots.length === 1
+                ? "Scored"
+                : win.length > 1
+                  ? "Tie"
+                  : win[0],
+          ),
         ];
       }),
     );
-  const relevanceKeys = ["hallucination_relevant", "hallucination_irrelevant"];
+  const relevanceKeys = ["hallucination_relevant", "hallucination_irrelevant"].filter((key) =>
+    studio.bots.some((b) => b.categories.some((c) => c.id === key)),
+  );
+  $("relevance-charts").hidden = !relevanceKeys.length;
   $("relevance-charts").innerHTML =
     '<h3>Relevance and irrelevance — separate scores</h3><div class="grid">' +
     relevanceKeys
@@ -276,7 +308,11 @@ function render(run) {
     const max = Math.max(1, ...rows.map((r) => r.input_tokens + r.output_tokens));
     const maxCost = Math.max(1, ...rows.map((r) => r.cost_micro_usd || 0));
     $("costs").innerHTML =
-      "<h3>Tokens and dollar cost</h3>" +
+      '<div class="cost-summary"><span>Bot cost <strong>' +
+      money(costs.bot?.cost_micro_usd) +
+      "</strong></span><span>Judge cost <strong>" +
+      money(costs.evaluation?.cost_micro_usd) +
+      "</strong></span></div>" +
       table(
         [
           "Bot / judge",
@@ -298,63 +334,98 @@ function render(run) {
         ]),
       ) +
       `<p>Bot total: ${money(costs.bot?.cost_micro_usd)}. Evaluation total: ${money(costs.evaluation?.cost_micro_usd)}. Hidden bot calls require its own telemetry. Token totals can include estimates for failed or opaque calls; JSON records each source.</p>`;
-  }
+  } else
+    $("costs").innerHTML =
+      '<p class="empty-state">Cost is unavailable for this run. Missing usage is never treated as free.</p>';
   const openIds = new Set(
     [...document.querySelectorAll("#case-results details[open]")].map((e) => e.dataset.case),
   );
-  $("case-results").innerHTML =
-    `<h3>${resultCases.length} recorded checks: summaries and transcripts</h3>` +
-    resultCases
+
+  function caseEvidence(category) {
+    return run.cases
+      .filter((c) => c.category === category)
       .map(
-        (item) =>
-          `<details data-case="${esc(item.category)}" ${openIds.has(item.category) ? "open" : ""}><summary>${esc(caseName(item))}</summary>${run.cases
-            .filter((c) => c.category === item.category)
+        (c) =>
+          `<div class="case-evidence"><h4>${esc(c.name)} · case ${c.scenario_index || 1}, repeat ${c.repeat}</h4><div class="grid">${c.results
             .map(
-              (c) =>
-                `<h4>${esc(c.name)} — case ${c.scenario_index || 1}, repeat ${c.repeat}</h4><div class="grid">${c.results.map((r, i) => `<article><strong>${esc(run.targets[i].name)} — ${esc(r.status.replaceAll("_", " "))}</strong><p>Score: ${r.score ?? "Not tested (index contribution 0)"}${r.score == null ? "" : "%"}</p><p>${r.human_review_note ? "<strong class=badge>Overridden — reason logged</strong> " : ""}${r.needs_review ? "<strong>Needs human review</strong> " : ""}${esc(r.reason)}</p>${(r.judges || []).map((j) => `<p>Judge: ${esc(j.model)} — ${j.score}%<br>Evidence: ${j.evidence.map(esc).join(" | ")}</p>`).join("")}${r.transcript.map((t) => `<div class="transcript"><strong>User:</strong> ${esc(t.input)}\n<strong>Bot:</strong> ${esc(t.output || t.error || "No response")}\nTime: ${t.seconds ?? "Unknown"} seconds</div>`).join("")}${!active && r.transcript.some((t) => t.output) ? `<button data-review="${esc(c.id)}" data-slot="${i}">Add human review</button>` : ""}</article>`).join("")}</div>`,
+              (r, i) =>
+                `<article><strong>${esc(run.targets[i].name)} <span class="pill">${esc(r.status.replaceAll("_", " "))}</span></strong><p>Score: ${r.score == null ? "Not tested (index contribution 0)" : r.score + "/100"}</p><p>${r.human_review_note ? "<strong class=badge>Overridden — reason logged</strong> " : ""}${r.needs_review ? "<strong>Needs human review</strong> " : ""}${esc(r.reason)}</p>${(r.judges || []).map((j) => `<p class="judge-reason">Judge: ${esc(j.model)} — ${j.score}%<br>Evidence: ${j.evidence.map(esc).join(" | ")}</p>`).join("")}${r.transcript
+                  .map(
+                    (t) => `<div class="transcript"><strong>User:</strong> ${esc(t.input)}
+<strong>Bot:</strong> ${esc(t.output || t.error || "No response")}
+Time: ${t.seconds ?? "Unknown"} seconds</div>`,
+                  )
+                  .join(
+                    "",
+                  )}${!active && r.transcript.some((t) => t.output) ? `<button data-review="${esc(c.id)}" data-slot="${i}">Add human review</button>` : ""}</article>`,
             )
-            .join("")}</details>`,
+            .join("")}</div></div>`,
       )
       .join("");
-  document.querySelectorAll("[data-review]").forEach(
-    (e) =>
-      (e.onclick = async () => {
-        const score = prompt("Human-reviewed score (0–100)");
-        if (score === null) return;
-        const note = prompt("Explain your review (at least 10 characters)");
-        if (!note) return;
-        try {
-          await api(`/api/studio/runs/${runId}/override`, {
-            case_id: e.dataset.review,
-            bot: Number(e.dataset.slot),
-            score: Number(score),
-            note,
-          });
-          await poll();
-        } catch (error) {
-          tell(error.message);
-        }
-      }),
-  );
+  }
+  $("case-results").innerHTML = resultCases
+    .map((item) => {
+      const records = run.cases.filter((c) => c.category === item.category);
+      const rows = records.flatMap((c) => c.results);
+      const scored = rows.filter(
+        (r) => r.score != null && ["passed", "failed"].includes(r.status),
+      ).length;
+      return `<details data-case="${esc(item.category)}" ${openIds.has(item.category) ? "open" : ""}><summary>${esc(caseName(item))}<span class="summary-meta">${scored}/${rows.length} outcomes scored</span></summary><div data-case-body>${openIds.has(item.category) ? caseEvidence(item.category) : ""}</div></details>`;
+    })
+    .join("");
+  // Load evidence only when requested, rather than inserting hundreds of hidden transcripts.
+  $("case-results")
+    .querySelectorAll("details[data-case]")
+    .forEach((details) => {
+      details.ontoggle = () => {
+        const body = details.querySelector("[data-case-body]");
+        if (details.open && !body.hasChildNodes())
+          body.innerHTML = caseEvidence(details.dataset.case);
+      };
+    });
+  $("case-results").onclick = async (event) => {
+    const button = event.target.closest("[data-review]");
+    if (!button) return;
+    const score = prompt("Human-reviewed score (0–100)");
+    if (score === null) return;
+    const note = prompt("Explain your review (at least 10 characters)");
+    if (!note) return;
+    try {
+      await api(`/api/studio/runs/${runId}/override`, {
+        case_id: button.dataset.review,
+        bot: Number(button.dataset.slot),
+        score: Number(score),
+        note,
+      });
+      await poll();
+    } catch (error) {
+      tell(error.message);
+    }
+  };
   $("audit").innerHTML =
-    `<p>Run ID: ${esc(run.id)}. Agreement measured on ${studio.agreement_cases || 0} conversations with distinct valid judge models. Agreement: ${studio.agreement_percent ?? "Not measured"}%. ${esc(studio.agreement_definition || "")}</p><pre>${esc(JSON.stringify(run.audit || [], null, 2))}</pre>`;
+    `<p>Run ID: ${esc(run.id)}. Agreement measured on ${studio.agreement_cases || 0} conversations with distinct valid judge models. Agreement: ${studio.agreement_percent == null ? "Not measured" : studio.agreement_percent + "%"}. ${esc(studio.agreement_definition || "")}</p><pre>${esc(JSON.stringify(run.audit || [], null, 2))}</pre>`;
+  $("bias-panel").hidden = !studio.bots.some((b) => b.bias_subtests?.length);
   renderGovernanceExtras(run);
   $("downloads").innerHTML =
-    `<a href="/governance.html?run=${run.id}">Governance / Reproduce</a><a href="/api/blackbox/runs/${run.id}/download?format=json">Download JSON (PII redacted)</a><a href="/api/blackbox/runs/${run.id}/download?format=pdf">Download PDF</a>`;
+    `<a class="button" href="/api/blackbox/runs/${run.id}/download?format=pdf">Download PDF</a><a class="button" href="/api/blackbox/runs/${run.id}/download?format=json">Export JSON</a><a class="button" href="#governance" data-view="governance">Trust and audit →</a>`;
 }
 async function poll() {
   if (!runId || pollBusy) return;
   pollBusy = true;
+  const requestedId = runId;
   try {
-    render(await api(`/api/blackbox/runs/${runId}`));
+    const run = await api(`/api/blackbox/runs/${requestedId}`);
+    if (requestedId === runId) render(run);
   } catch (error) {
-    tell(error.message);
+    if (requestedId === runId) tell(error.message);
   } finally {
     pollBusy = false;
+    if (runId && requestedId !== runId) setTimeout(poll, 0);
   }
 }
 async function loadHistory() {
   const runs = await api("/api/blackbox/runs");
+  window.StudioUI.setRuns(runs);
   $("history").innerHTML = runs
     .map(
       (r) =>
@@ -364,18 +435,17 @@ async function loadHistory() {
   document.querySelectorAll("[data-run]").forEach(
     (e) =>
       (e.onclick = () => {
-        runId = e.dataset.run;
-        hydrateRequested = true;
-        window.history.replaceState(null, "", `?run=${runId}#results`);
-        poll();
+        window.StudioUI.selectRun(e.dataset.run);
+        window.StudioUI.navigate("results");
       }),
   );
 }
 async function boot() {
   settings = await api("/api/studio/settings");
   $("suite-intro").textContent =
-    `${settings.cases.length} categories. Bias contains nine tagged sub-tests (eight conversations plus one derived disparity index). Choose repeats per case. Repeats measure consistency, not additional independent coverage.`;
+    `${settings.cases.length} categories are included. Each test repeats ${settings.default_repeats} times by default. Bias includes nine sub-tests. You can customize repeats below.`;
   addBot();
+  $("test-preview").innerHTML = settings.cases.map((c) => `<span>${esc(c.name)}</span>`).join("");
   $("checks").innerHTML = settings.cases
     .map(
       (c) =>
@@ -385,6 +455,7 @@ async function boot() {
   document.querySelectorAll("[data-repeat]").forEach((e) => (e.oninput = planned));
   if (!runId) {
     ["stop", "apply-judges", "resume"].forEach((id) => ($(id).disabled = true));
+    $("apply-judges").hidden = true;
   }
   const saved = settings.saved_judge;
   let list = settings.judges;
@@ -435,6 +506,7 @@ async function boot() {
   planned();
   await loadHistory();
   await poll();
+  $("start").disabled = false;
 }
 $("add-bot").onclick = addBot;
 $("start").onclick = async () => {
@@ -443,7 +515,8 @@ $("start").onclick = async () => {
     if (!cfg.judges.length) throw new Error("Choose a judge model first.");
     const result = await api("/api/studio/runs", cfg);
     runId = result.id;
-    window.history.replaceState(null, "", `?run=${runId}#results`);
+    window.StudioUI.selectRun(runId, { notify: false });
+    window.StudioUI.navigate("results");
     tell("Evaluation started. Each completed conversation is saved.");
     await poll();
     await loadHistory();
@@ -465,6 +538,22 @@ $("apply-judges").onclick = async () => {
 };
 $("resume").onclick = async () => {
   try {
+    const cards = [...document.querySelectorAll(".bot")];
+    const sameTargets =
+      current?.targets.length === cards.length &&
+      cards.every(
+        (card, index) =>
+          card.querySelector("[data-field=url]").value.trim() === current.targets[index].url,
+      );
+    if (!sameTargets && current?.config.simple_mode) {
+      hydrateRequested = true;
+      render(current);
+      window.StudioUI.navigate("evaluate");
+      tell(
+        "This run’s bot settings are loaded. Add any required keys, allow test access, then choose Resume missing cases.",
+      );
+      return;
+    }
     await api(`/api/studio/runs/${runId}/resume`, {
       judges: judges(),
       consent: $("consent").checked,
@@ -494,6 +583,43 @@ $("references-file").onchange = async (e) => {
     tell("Invalid reference JSON: " + error.message);
   }
 };
+$("use-run-settings").onclick = () => {
+  if (!current?.config.simple_mode) return;
+  hydrateRequested = true;
+  render(current);
+  window.StudioUI.navigate("evaluate");
+  tell("Saved settings loaded. Re-enter any required API keys; keys are not copied from reports.");
+};
+window.addEventListener("studio:run-selected", async (event) => {
+  runId = event.detail.id;
+  current = null;
+  hydrateRequested = false;
+  liveEvents?.close();
+  liveRun = "";
+  liveEvents = null;
+  [
+    "verdict",
+    "scores",
+    "bias-details",
+    "integrity",
+    "costs",
+    "case-results",
+    "audit",
+    "downloads",
+    "relevance-charts",
+    "live-progress",
+  ].forEach((id) => ($(id).innerHTML = ""));
+  ["stop", "resume", "apply-judges", "use-run-settings"].forEach((id) => ($(id).disabled = true));
+  $("progress").value = 0;
+  $("stage").textContent = runId
+    ? "Loading selected evaluation…"
+    : "Choose a saved evaluation or start a new test.";
+  if (settings && !pollBusy) await poll();
+});
+window.addEventListener("studio:refresh", async () => {
+  await poll();
+  await loadHistory();
+});
 boot().catch((error) => tell(error.message));
 setInterval(() => {
   if (current && ["queued", "running"].includes(current.status)) poll();
@@ -502,20 +628,25 @@ setInterval(() => {
 let liveEvents = null;
 let liveRun = "";
 function renderGovernanceExtras(run) {
+  const biasOpen = new Set(
+    [...$("bias-details").querySelectorAll("details[open]")].map((d) => d.dataset.bias),
+  );
   $("bias-details").innerHTML = (run.studio?.bots || [])
     .map(
       (bot) =>
-        `<h3>${esc(bot.name)} — Bias sub-tests</h3>${(bot.bias_subtests || []).map((s) => `<details><summary>${esc(s.name || s.subtype)}: ${s.score}% • ${esc(s.status)} • severity ${esc(s.severity)}</summary><p>${esc(s.reason)}</p><div class="grid">${s.evidence.map((e) => `<article class="transcript"><strong>${esc(e.prompt)}</strong><p>${esc(e.excerpt)}</p></article>`).join("")}</div><small>${esc(s.signals?.limitation || (s.subtype === "algorithmic" ? "Derived aggregate; source pairs are linked in the JSON." : "No screening signals were recorded for this historical result."))}</small></details>`).join("")}`,
+        `<h3>${esc(bot.name)} — Bias sub-tests</h3>${(bot.bias_subtests || []).map((s) => `<details data-bias="${esc(bot.name + ":" + s.subtype)}" ${biasOpen.has(bot.name + ":" + s.subtype) ? "open" : ""}><summary>${esc(s.name || s.subtype)}: ${s.score}% • ${esc(s.status)} • severity ${esc(s.severity)}</summary><p>${esc(s.reason)}</p><div class="grid">${s.evidence.map((e) => `<article class="transcript"><strong>${esc(e.prompt)}</strong><p>${esc(e.excerpt)}</p></article>`).join("")}</div><small>${esc(s.signals?.limitation || (s.subtype === "algorithmic" ? "Derived aggregate; source pairs are linked in the JSON." : "No screening signals were recorded for this historical result."))}</small></details>`).join("")}`,
     )
     .join("");
   const overrides = run.cases.flatMap((c) => c.results).filter((r) => r.human_review_note).length;
   $("integrity").innerHTML =
-    `<h3>Run integrity</h3><p>${run.cases.filter((c) => c.completed).length}/${run.cases.length} records processed. ${overrides} overrides. Judge agreement: ${run.studio?.agreement_percent ?? "Not measured"}%. <a href="/governance.html?run=${encodeURIComponent(run.id)}">Verify audit chain and inspect cards</a></p>`;
+    `<p class="integrity-note">${run.cases.filter((c) => c.completed).length}/${run.cases.length} records processed · ${overrides} overrides · Judge agreement: ${run.studio?.agreement_percent == null ? "Not measured" : run.studio.agreement_percent + "%"}. <a href="#governance" data-view="governance">View governance →</a></p>`;
   if (liveRun !== run.id) {
     liveEvents?.close();
     liveRun = run.id;
-    liveEvents = new EventSource(`/api/studio/runs/${run.id}/events`);
-    liveEvents.onmessage = (event) => {
+    const source = new EventSource(`/api/studio/runs/${run.id}/events`);
+    liveEvents = source;
+    source.onmessage = (event) => {
+      if (run.id !== runId) return;
       const data = JSON.parse(event.data);
       $("live-progress").innerHTML =
         `<p>Active run time: ${data.active_seconds}s. Bot time sums exclude queueing; concurrent work overlaps.</p>` +
@@ -533,7 +664,7 @@ function renderGovernanceExtras(run) {
           ),
         );
       if (!["running", "queued"].includes(data.status)) {
-        liveEvents.close();
+        source.close();
         liveRun = "";
       }
     };
