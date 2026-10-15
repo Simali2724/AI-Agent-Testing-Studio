@@ -191,3 +191,8 @@ User authorized the safest restart/resume so all cases continue. Run `1dbd9014-5
 - Reuse idle SQLite connections per database path and thread. Nested/concurrent transactions get separate leases; FULL synchronous WAL commits, rollback, and evidence persistence are retained. Shutdown closes idle handles and lets active transactions finish before closing them.
 - Added six database regression tests for independent transactions, rollback, concurrent writes, reuse, durable reopen and shutdown. The existing performance baseline and 20% threshold are unchanged.
 - Local verification: 249 passed, 1 existing symlink-permission skip, 85.28 seconds. Ruff format/lint, Prettier, 24-file JavaScript syntax, nine navigation tests and the isolated four-bot comparison smoke test pass. No chatbot/provider calls were made. Native GitHub matrix verification follows the commit.
+
+### Native CI follow-up
+
+- Run 38770550500, commit 663d90d: macOS and Ubuntu passed every check, including the full regression suite and comparison UI.
+- Windows failed before tests: the hosted runner's preinstalled pipx requires filelock>=4.0.9, conflicting with the project dependency version. Create a clean .venv and add its platform-specific executable directory to GITHUB_PATH before installation. Keep pip check enabled inside the isolated environment; do not uninstall runner tools or weaken dependency validation.

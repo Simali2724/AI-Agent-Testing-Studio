@@ -32,6 +32,13 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+      - name: Create isolated Python environment
+        run: |
+          python -m venv .venv
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $binDirectory = if ($IsWindows) { "Scripts" } else { "bin" }
+          $venvBin = Join-Path (Join-Path $PWD ".venv") $binDirectory
+          $venvBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Install development dependencies
         run: |
           python -m pip install -r requirements-dev.txt

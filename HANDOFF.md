@@ -94,3 +94,7 @@ Additional CI failures were a Windows storage performance regression, a scheduli
 Source changes: app/database.py, app/blackbox_app.py, tests/conftest.py, tests/test_database.py, tests/test_concurrency.py, scripts/check-exact-compare.py. Database connections retain FULL synchronous WAL durability; active transactions are never shared concurrently. Next step: push this scoped patch and confirm Windows/Linux/macOS GitHub jobs, recording the actual run URL and outcomes. Do not claim remote green from local results alone.
 
 D: briefly became unavailable; a temporary verification clone was created under C:/Users/Moinuddeen hussain/Documents/ChatGPT/Moinuddeen_airm/ci-verification. D: returned and the final tests above ran on D:/AI-Agent-Testing-Studio. Saved local regression logs/XML are in the C: comparison-reports directory. The temporary clone is not the authoritative checkout.
+
+### Remote verification update
+
+Commit 663d90d was pushed. GitHub run https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/runs/38770550500 passed all macOS and Ubuntu checks. Windows dependency installation failed because the runner's unrelated preinstalled pipx conflicts with filelock. The follow-up workflow creates an isolated .venv and places Scripts (Windows) or bin (POSIX) on GITHUB_PATH before installing dependencies. pip check remains mandatory. Verify the next run before claiming all platforms green.
