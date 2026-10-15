@@ -2,6 +2,8 @@
 
 import copy
 
+from legacy_protocol import snapshot
+
 from app.blackbox import studio_engine
 from app.blackbox.runner import aggregate, make_run
 from app.blackbox.schema import ImportedCase, Settings, Target
@@ -18,7 +20,8 @@ def config(**fields):
     )
 
 
-def test_ten_distinct_cases_in_every_category_and_five_repeats():
+def test_ten_distinct_cases_in_every_category_and_five_repeats(monkeypatch):
+    monkeypatch.setattr(studio_engine, "settings_file", snapshot)
     protocol = studio_engine.settings_file()
     assert len(protocol["cases"]) == 16
     for category, scenarios in protocol["scenario_sets"].items():
@@ -34,7 +37,8 @@ def test_ten_distinct_cases_in_every_category_and_five_repeats():
     assert {r["repeat"] for r in rows} == {1, 2, 3, 4, 5}
 
 
-def test_each_reference_used_once_per_distinct_fact_scenario():
+def test_each_reference_used_once_per_distinct_fact_scenario(monkeypatch):
+    monkeypatch.setattr(studio_engine, "settings_file", snapshot)
     refs = [{"prompt": f"Price of P{i}?", "reference": {"price": i}} for i in range(10)]
     rows = studio_engine.cases(config(references=refs, repeat_counts={"hallucination": 1}))
     factual = [r for r in rows if r["category"] == "hallucination"]
@@ -43,6 +47,7 @@ def test_each_reference_used_once_per_distinct_fact_scenario():
 
 
 def test_repeat_spread_is_within_case_not_between_different_cases(monkeypatch):
+    monkeypatch.setattr(studio_engine, "settings_file", snapshot)
     monkeypatch.setattr("app.blackbox.runner.summarize", lambda run: {})
     run = make_run(config())
     for case in run["cases"]:
@@ -55,6 +60,7 @@ def test_repeat_spread_is_within_case_not_between_different_cases(monkeypatch):
 
 
 def test_original_single_scenario_protocol_retains_its_cases(monkeypatch):
+    monkeypatch.setattr(studio_engine, "settings_file", snapshot)
     original = copy.deepcopy(studio_engine.settings_file())
     original.pop("scenario_sets")
     original.pop("scenario_file")

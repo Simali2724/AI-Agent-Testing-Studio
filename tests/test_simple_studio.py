@@ -46,10 +46,11 @@ def test_missing_is_zero_index_separate_from_quality(monkeypatch):
     run["cases"][0]["results"][0].update(status="passed", score=90)
     aggregate(run)
     result = run["studio"]["bots"][0]
-    assert result["score"] == round(1.8 / len(studio_engine.settings_file()["cases"]), 2)
+    category_score = 90 / studio_engine.settings_file()["default_repeats"]
+    assert result["score"] == round(category_score / len(studio_engine.settings_file()["cases"]), 2)
     assert result["categories"][0]["quality"] == 90
     assert result["tested"] == 1
-    assert result["categories"][0]["score"] == 1.8
+    assert result["categories"][0]["score"] == category_score
 
 
 def test_winner_and_incomplete_evidence(monkeypatch):

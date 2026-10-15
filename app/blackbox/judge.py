@@ -79,11 +79,57 @@ async def judge_request(config, send, messages, max_output_tokens=1500):
                 raise ProviderQuotaUnavailable("AI judge: " + reason) from exc
             if attempt == 2 or not transient_error(exc):
                 raise
-            status = getattr(exc, "status_code", None)
-            await asyncio.sleep(60 if status == 429 else 3 * (attempt + 1))
+            from .connectors import safe_error
+            from .scheduling import retry_delay
+
+            if live is not None:
+                audit(
+                    live,
+                    "judge_retry",
+                    model=config.judge_model,
+                    attempt=attempt + 1,
+                    reason=safe_error(exc),
+                )
+            await asyncio.sleep(retry_delay(exc) or 3 * (attempt + 1))
 
 
 async def ask(config, payload, pair=False):
+    from .execution_cache import digest, read, write
+    from .studio_engine import LIVE_RUNS, audit
+
+    context = metering._context.get() or {}
+    run_id = context.get("run_id", "")
+    from .judge_prompts import request_body
+
+    body, _, _ = request_body(config, payload, pair)
+    prompt_hash = digest(body)
+    transcript_hash = digest({k: payload[k] for k in ("transcript", "A", "B") if k in payload})
+    key = digest(
+        {
+            "model": config.judge_model,
+            "endpoint": config.judge_url,
+            "prompt_hash": prompt_hash,
+            "transcript_hash": transcript_hash,
+        }
+    )
+    cached = read(run_id, "judge", key)
+    if cached:
+        if run_id in LIVE_RUNS:
+            audit(
+                LIVE_RUNS[run_id],
+                "judge_cache_hit",
+                model=config.judge_model,
+                key=key,
+                prompt_hash=prompt_hash,
+                transcript_hash=transcript_hash,
+            )
+        return cached
+    result = await _ask_uncached(config, payload, pair)
+    write(run_id, "judge", key, result)
+    return result
+
+
+async def _ask_uncached(config, payload, pair=False):
     if not config.judge_consent:
         raise ValueError("Judge data-sharing consent is missing.")
     if not config.judge_model:
@@ -94,27 +140,10 @@ async def ask(config, payload, pair=False):
                 "configured."
             )
         )
-    headers = {}
-    if config.judge_token:
-        headers["Authorization"] = "Bearer " + config.judge_token.get_secret_value()
-    schema = (
-        '{"winner":"A|B|tie", "reason":"explanation", "evidence":["exact quote"]}'
-        if pair
-        else '{"score":0, "reason":"explanation", "evidence":["exact quote"]}'
-    )
-    body = {
-        "model": config.judge_model,
-        "temperature": 0,
-        "max_tokens": 1500,
-        "messages": [
-            {"role": "system", "content": SYSTEM + " Required format: " + schema},
-            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-        ],
-        "response_format": {"type": "json_object"},
-    }
+    from .evidence_ids import bind
+    from .judge_prompts import request_body
 
-    if "gemma-4" in config.judge_model.lower():
-        body["reasoning_effort"] = "minimal"
+    body, outputs, evidence_choices = request_body(config, payload, pair)
 
     async def send():
         return await metering.completion(
@@ -124,34 +153,26 @@ async def ask(config, payload, pair=False):
             config.timeout,
         )
 
-    if pair:
-        outputs = [x["output"] for key in ("A", "B") for x in payload[key] if x.get("output")]
-    else:
-        outputs = [x["output"] for x in payload["transcript"] if x.get("output")]
-    from .evidence_ids import bind, options
-
-    evidence_choices = options(outputs)
-    body["messages"][1]["content"] = json.dumps(
-        {
-            **payload,
-            "evidence_options": [
-                {"id": i, "quote": quote} for i, quote in enumerate(evidence_choices)
-            ],
-        },
-        ensure_ascii=False,
-    )
-    body["messages"][0]["content"] += (
-        " You may return evidence_ids:[0] instead of retyping quotes. Select only offered evidence IDs that support your verdict; the platform binds them to exact original excerpts. Never translate a quote."
-    )
     for attempt in range(2):
-        data = await judge_request(config, send, body["messages"], body["max_tokens"])
+        if config.judge_batch_size > 1 and not pair and attempt == 0:
+            from .judge_batch import completion
+
+            try:
+                data = await completion(config, body)
+            except (metering.BudgetLimit, Halted, asyncio.CancelledError):
+                raise
+            except Exception:
+                # Schema/batch support differs by provider; retry individually, not skip.
+                data = await judge_request(config, send, body["messages"], body["max_tokens"])
+        else:
+            data = await judge_request(config, send, body["messages"], body["max_tokens"])
         choice = data["choices"][0]
         if choice.get("finish_reason") == "length" and attempt == 0:
             body["max_tokens"] = 3000
             body["messages"].append(
                 {
                     "role": "user",
-                    "content": "Return a compact complete JSON verdict with a brief explanation and one exact evidence quote.",
+                    "content": "Return compact complete JSON with a brief explanation and exact evidence from EACH paired reply, or one exact quote for a single reply.",
                 }
             )
             continue
@@ -177,7 +198,10 @@ async def ask(config, payload, pair=False):
             if type(score) not in (float, int) or not math.isfinite(score) or not 0 <= score <= 100:
                 raise ValueError("Judge score must be a finite number from 0 to 100.")
         matches, unmatched = validate_evidence(result.get("evidence"), outputs)
-        if matches:
+        pair_evidence_complete = not payload.get("bias_subtype") or all(
+            validate_evidence(result.get("evidence"), [output])[0] for output in outputs
+        )
+        if matches and pair_evidence_complete:
             needs_review = bool(unmatched) or any(m["method"] == "ellipsis" for m in matches)
             result.update(
                 evidence=[m["quote"] for m in matches],
@@ -206,7 +230,7 @@ async def ask(config, payload, pair=False):
                     "content": (
                         "Your evidence did not match the recorded assistant replies. Re-evaluate "
                         "the original transcript and return the required JSON. Copy at least one "
-                        "relevant complete quote exactly from an assistant reply. Do not invent "
+                        "relevant complete quote exactly from EACH paired assistant reply (or the single reply). Do not invent "
                         "or paraphrase evidence. If no quote supports the verdict, do not "
                         "manufacture one."
                     ),
@@ -242,6 +266,8 @@ async def evaluate(config, case, observation):
         "policy": config.policy,
         "scope": config.scope,
         "transcript": observation["transcript"],
+        "bias_subtype": case.get("bias_subtype", ""),
+        "screening_signals": observation.get("screening_signals", {}),
     }
     try:
         primary = await ask(config, payload)
@@ -320,6 +346,7 @@ async def pairwise(config, case, a, b, rng):
                 "reference": case["reference"],
                 "policy": config.policy,
                 "scope": config.scope,
+                "presentation_order": seq,
                 "A": responses[seq[0]]["transcript"],
                 "B": responses[seq[1]]["transcript"],
             },

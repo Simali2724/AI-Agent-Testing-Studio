@@ -235,7 +235,9 @@ def make_run(config):
     if config.simple_mode:
         from .studio_engine import settings_file
 
-        config.categories = [c["category"] for c in settings_file()["cases"]]
+        config.categories = [
+            c["category"] for c in (config._protocol_override or settings_file())["cases"]
+        ]
         config.category_weights = config.category_weights or settings_file()["weights"]
     pricing.pin(config)
     cases = build_cases(config)
@@ -296,7 +298,7 @@ def make_run(config):
     if config.simple_mode:
         from .studio_engine import settings_file
 
-        run["protocol_snapshot"] = settings_file()
+        run["protocol_snapshot"] = config._protocol_override or settings_file()
         import importlib.metadata
         import sys
 
@@ -319,11 +321,9 @@ def save(run, config=None):
         if config.secondary_judge_token:
             secrets.append(config.secondary_judge_token.get_secret_value())
         config._used_secrets = list(dict.fromkeys(config._used_secrets + secrets))
-        encoded = json.dumps(run)
-        for secret in config._used_secrets:
-            if secret:
-                encoded = encoded.replace(secret, "[REDACTED]")
-        clean = json.loads(encoded)
+        from .governance import scrub_secrets
+
+        clean = scrub_secrets(run, config._used_secrets)
         for case in clean["cases"]:
             case["evidence_sha256"] = hashlib.sha256(
                 json.dumps(case["results"], sort_keys=True).encode()
@@ -367,6 +367,9 @@ class EvaluationExecutor:
                 "execution_started",
                 judges=[j.model for j in config.judges],
                 price_snapshot=run.get("price_snapshot_id"),
+                engine_versions=run.get("engine_versions", {}),
+                config=run.get("config", {}),
+                protocol=run.get("protocol_snapshot", {}),
             )
         self.stop = ACTIVE.setdefault(run["id"], asyncio.Event())
         self.runtime = Runtime(config, self.stop)
@@ -374,6 +377,9 @@ class EvaluationExecutor:
         self.unavailable = {}
         self.errors = [0] * len(self.clients)
         self.last_save = 0
+        self.prior_duration = max(
+            self.run.get("duration_seconds", 0), self.run.get("active_elapsed_seconds", 0)
+        )
         self.start = time.monotonic()
 
     def checkpoint(self):
@@ -384,6 +390,9 @@ class EvaluationExecutor:
             / len(self.run["cases"]),
             1,
         )
+        self.run["active_elapsed_seconds"] = round(
+            self.prior_duration + time.monotonic() - self.start, 3
+        )
         # Coalesce database/report work rather than serialize a whole run per fast case.
         if time.monotonic() - self.last_save >= 0.5:
             aggregate(self.run)
@@ -392,8 +401,26 @@ class EvaluationExecutor:
 
     async def conversation_with_recovery(self, case, i, allowance):
         """Retry rate-limited conversations twice; retain attempts and metered costs."""
+        from .execution_cache import observation_key, read
+
         for attempt in range(3):
-            observation = await asyncio.wait_for(self.clients[i].conversation(case), allowance)
+            cached = (
+                read(self.run["id"], "bot", observation_key(self.config, i, case))
+                if self.config.simple_mode
+                else None
+            )
+            if (
+                cached
+                and cached.get("transcript")
+                and getattr(self.clients[i], "kind", "") == "web"
+                and not case.get("parallel")
+            ):
+                return {
+                    **cached,
+                    "error": "Not tested: a partial web conversation cannot restore its browser state without replaying completed turns. Saved replies are retained; use a new run for a fresh conversation.",
+                }
+            call_case = {**case, "resume_observation": cached} if cached else case
+            observation = await asyncio.wait_for(self.clients[i].conversation(call_case), allowance)
             reason = str(observation.get("error") or "").lower()
             if (blocked := quota_reason(reason)) and not self.config.simple_mode:
                 error = ProviderQuotaUnavailable("Chatbot: " + blocked)
@@ -421,6 +448,9 @@ class EvaluationExecutor:
                 "Provider rate limit: waiting 60 seconds before retrying " + case["name"]
             )
             self.checkpoint()
+            from .studio_engine import audit
+
+            audit(self.run, "bot_retry", case=case["id"], bot=i, attempt=attempt + 1, reason=reason)
             await asyncio.sleep(min(12, 3 * (attempt + 1)) if self.config.simple_mode else 60)
             self.runtime.check()
 
@@ -428,7 +458,23 @@ class EvaluationExecutor:
         """Collect and judge one conversation, retaining evidence on interruption."""
         if scored(case["results"][i]):
             return
-        observation = case.get("resume_observations", {}).get(str(i))
+        from .execution_cache import observation_key, read, write
+        from .studio_engine import audit
+
+        cache_key = observation_key(self.config, i, case)
+        observation = case.get("resume_observations", {}).get(str(i)) or read(
+            self.run["id"], "bot", cache_key
+        )
+        if observation:
+            audit(
+                self.run,
+                "bot_observation_reused",
+                case=case["id"],
+                bot=i,
+                repeat=case.get("repeat"),
+            )
+        if observation and len(observation.get("transcript", [])) < len(case["turns"]):
+            observation = None  # Successful prefix is restored by the connector; do not grade an incomplete dialogue.
         try:
             self.runtime.check()
             with metering.scope(
@@ -457,6 +503,18 @@ class EvaluationExecutor:
                     ) + 10
                     if observation is None:
                         observation = await self.conversation_with_recovery(case, i, allowance)
+                        if not observation.get("error"):
+                            write(self.run["id"], "bot", cache_key, observation)
+                            audit(
+                                self.run,
+                                "bot_observation",
+                                case=case["id"],
+                                bot=i,
+                                repeat=case.get("repeat"),
+                                transcript_sha256=hashlib.sha256(
+                                    json.dumps(observation["transcript"], sort_keys=True).encode()
+                                ).hexdigest(),
+                            )
                     self.errors[i] = self.errors[i] + 1 if observation.get("error") else 0
                     if self.errors[i] >= 3 and not self.config.simple_mode:
                         self.unavailable[i] = (
@@ -523,6 +581,7 @@ class EvaluationExecutor:
                 )
             raise
         except Exception as exc:
+            audit(self.run, "case_error", case=case["id"], bot=i, reason=safe_error(exc))
             case["results"][i] = missing(safe_error(exc))
             if observation:
                 case["results"][i].update(
@@ -535,6 +594,8 @@ class EvaluationExecutor:
     async def process(self, case, speed=False):
         """Run one case for all targets, then compare the completed responses."""
         self.runtime.check()
+        case["started_at"] = now()
+        case_start = time.monotonic()
         self.run["stage"] = ("Sequential speed check: " if speed else "Concurrent checks: ") + case[
             "name"
         ]
@@ -605,7 +666,28 @@ class EvaluationExecutor:
         case["evidence_sha256"] = hashlib.sha256(
             json.dumps(case["results"], sort_keys=True).encode()
         ).hexdigest()
+        from .studio_engine import audit
+
+        audit(
+            self.run,
+            "case_outcome",
+            case=case["id"],
+            outcomes=[
+                {
+                    "bot": i,
+                    "status": r["status"],
+                    "score": r.get("score"),
+                    "reason": r.get("reason"),
+                    "transcript_hash": hashlib.sha256(
+                        json.dumps(r.get("transcript", []), sort_keys=True).encode()
+                    ).hexdigest(),
+                }
+                for i, r in enumerate(case["results"])
+            ],
+        )
         case["completed"] = True
+        case["elapsed_seconds"] = round(time.monotonic() - case_start, 3)
+        case["finished_at"] = now()
         self.checkpoint()
 
     async def quality_phase(self, cases):
@@ -669,7 +751,14 @@ class EvaluationExecutor:
                             or "Run ended before this case was executed: " + self.run["status"]
                         )
                 case["pair"]["reason"] = "Run ended before pairwise judging."
-        self.run["duration_seconds"] = round(time.monotonic() - self.start, 3)
+        if self.config.simple_mode:
+            from .bias import derive_algorithmic
+            from .studio_engine import audit
+
+            derive_algorithmic(self.run)
+            audit(self.run, "execution_finished", status=self.run["status"])
+        self.run["duration_seconds"] = round(self.prior_duration + time.monotonic() - self.start, 3)
+        self.run["active_elapsed_seconds"] = self.run["duration_seconds"]
         self.run["progress"] = round(
             100
             * sum(c.get("completed", False) for c in self.run["cases"])
@@ -702,7 +791,9 @@ class EvaluationExecutor:
                         [
                             c
                             for c in self.run["cases"]
-                            if not c.get("completed") and c["category"] != "performance"
+                            if not c.get("completed")
+                            and not c.get("derived")
+                            and c["category"] != "performance"
                         ]
                     )
                     await self.speed_phase()

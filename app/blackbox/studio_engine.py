@@ -1,11 +1,9 @@
 """Ten-scenario protocol, judge panel and transparent governance summaries."""
 
 import asyncio
-import copy
 import json
 import random
 import statistics
-from datetime import datetime, timezone
 
 from ..config import ROOT
 from .schema import ImportedCase, JudgeSelection, Settings
@@ -15,9 +13,9 @@ LIVE_RUNS: dict = {}
 
 
 def audit(run: dict, event: str, **details) -> None:
-    run.setdefault("audit", []).append(
-        {"at": datetime.now(timezone.utc).isoformat(), "event": event, **copy.deepcopy(details)}
-    )
+    from .governance import append
+
+    append(run, event, **details)
 
 
 def settings_file() -> dict:
@@ -27,12 +25,22 @@ def settings_file() -> dict:
         if path.resolve().parent != (ROOT / "app/studio").resolve():
             raise ValueError("Scenario files must stay inside app/studio.")
         protocol["scenario_sets"] = json.loads(path.read_text(encoding="utf-8"))
+    if protocol.get("bias_file"):
+        path = (ROOT / "app/studio" / protocol["bias_file"]).resolve()
+        if path.parent != (ROOT / "app/studio").resolve():
+            raise ValueError("Bias file must stay inside app/studio.")
+        bias = json.loads(path.read_text(encoding="utf-8"))
+        protocol.setdefault("scenario_sets", {})["bias"] = bias["cases"]
+        protocol["bias_version"] = bias["version"]
+    protocol["governance_mapping"] = json.loads(
+        (ROOT / "app/studio/governance.json").read_text(encoding="utf-8")
+    )
     return protocol
 
 
 def cases(config: Settings) -> list[dict]:
     """Expand distinct authored scenarios, keeping repetitions separately identifiable."""
-    protocol = settings_file()
+    protocol = config._protocol_override or settings_file()
     result = []
     for item in protocol["cases"]:
         category = item["category"]
@@ -58,6 +66,8 @@ def cases(config: Settings) -> list[dict]:
                     row["expected"] += (
                         " Also assess relevance to the supplied question; unrelated or unsupported additions reduce satisfaction."
                     )
+            row.pop("pair_template", None)
+            row.pop("attributes", None)
             valid = ImportedCase.model_validate(row).model_dump()
             for repeat in range(count):
                 result.append(
@@ -87,23 +97,69 @@ def judge_config(config: Settings, entry: JudgeSelection) -> Settings:
 
 
 async def panel(config: Settings, case: dict, observation: dict) -> dict:
+    from .bias import ordered_observation, signals
     from .connectors import safe_error
+    from .deterministic import evaluate_exact
     from .judge import evaluate
+    from .local_metrics import classify, screen
     from .metering import BudgetLimit, _context
     from .quota import ProviderQuotaUnavailable
     from .scheduling import Halted
 
     context = _context.get() or {}
     run = LIVE_RUNS.get(context.get("run_id"), {})
+    metrics = screen(observation)
+    bias_signals = signals(observation) if case.get("bias_subtype") else {}
+    exact = evaluate_exact(case, observation)
+    if exact and exact["score"] == 0:
+        audit(
+            run,
+            "deterministic_verdict",
+            case=case["id"],
+            score=0,
+            checks=exact.get("deterministic_checks"),
+        )
+        return {
+            **exact,
+            "panel_complete": True,
+            "deterministic_score": 0,
+            "screening": metrics,
+            "bias_signals": bias_signals,
+        }
+    local = await classify(case, observation, config.local_classifiers)
+    if local:
+        audit(run, "local_classifier", case=case["id"], result=local)
+    if local and local.get("decisive"):
+        return {
+            **local,
+            "panel_complete": True,
+            "screening": metrics,
+            "bias_signals": bias_signals,
+            "needs_review": True,
+        }
     entries = list(config.judges)
     primary = [j for j in entries if not j.fallback]
     fallback = [j for j in entries if j.fallback and j.local]
-    verdicts, failures = [], []
-    for entry in primary:
+
+    async def collect(entry):
+        verdicts, failures = [], []
         candidates = [entry, *fallback]
         for index, candidate in enumerate(candidates):
             try:
-                verdict = await evaluate(judge_config(config, candidate), case, observation)
+                presented = ordered_observation(case, observation, config.seed, candidate.model)
+                audit(
+                    run,
+                    "bias_pair_order",
+                    case=case["id"],
+                    model=candidate.model,
+                    order=presented["pair_order"],
+                ) if "pair_order" in presented else None
+                presented["screening_signals"] = {
+                    "bias": bias_signals,
+                    "general": metrics,
+                    "local_classifier": local,
+                }
+                verdict = await evaluate(judge_config(config, candidate), case, presented)
                 verdicts.append(
                     {**verdict, "model": candidate.model, "requested_model": entry.model}
                 )
@@ -113,6 +169,7 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
                     case=case["id"],
                     model=candidate.model,
                     score=verdict["score"],
+                    provider_model=verdict.get("provider_model", "revision unavailable"),
                     prompt_version="rubric-v1",
                     temperature=0,
                 )
@@ -148,6 +205,13 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
                     }
                 )
             audit(run, "judge_unavailable", case=case["id"], **failures[-1])
+        return verdicts, failures
+
+    from .runner import joined
+
+    outcomes = await joined(collect(entry) for entry in primary)
+    verdicts = [v for accepted, _ in outcomes for v in accepted]
+    failures = [f for _, rejected in outcomes for f in rejected]
     if not verdicts:
         raise ValueError(
             "No selected judge produced valid evidence. "
@@ -155,11 +219,15 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
         )
     score = statistics.mean(v["score"] for v in verdicts)
     return {
+        "screening": metrics,
+        "local_classifier": local,
+        "bias_signals": bias_signals,
         "score": score,
         "reason": " ".join(v["model"] + ": " + v["reason"] for v in verdicts),
         "evidence": [quote for v in verdicts for quote in v.get("evidence", [])],
         "estimated": True,
-        "needs_review": any(v.get("needs_review", False) for v in verdicts),
+        "needs_review": any(v.get("needs_review", False) for v in verdicts)
+        or len({v["score"] >= 80 for v in verdicts}) > 1,
         "panel_complete": len(verdicts) == len(primary),
         "judges": verdicts,
         "judge_failures": failures,
@@ -173,6 +241,9 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
 def summarize(run: dict) -> None:
     """Missing evidence is zero in the requested index, with quality shown separately."""
     protocol = run.get("protocol_snapshot") or settings_file()
+    from .bias import breakdown, derive_algorithmic
+
+    derive_algorithmic(run)
     weights = run["config"].get("category_weights") or protocol["weights"]
     for case in run["cases"]:
         for result in case["results"]:
@@ -186,7 +257,11 @@ def summarize(run: dict) -> None:
         groups = []
         for item in protocol["cases"]:
             key = item["category"]
-            rows = [c["results"][slot] for c in run["cases"] if c["category"] == key]
+            rows = [
+                c["results"][slot]
+                for c in run["cases"]
+                if c["category"] == key and not c.get("derived")
+            ]
             measured = [
                 r["score"]
                 for r in rows
@@ -235,10 +310,11 @@ def summarize(run: dict) -> None:
         bot_summaries.append(
             {
                 "name": bot["name"],
+                "bias_subtests": breakdown(run, slot),
                 "score": round(score, 2),
                 "categories": groups,
                 "tested": sum(g["tested"] for g in groups),
-                "planned": len(run["cases"]),
+                "planned": sum(g["planned"] for g in groups),
             }
         )
     winner = None
@@ -317,13 +393,25 @@ def summarize(run: dict) -> None:
     run["studio"]["agreement_definition"] = (
         "Pass/fail agreement at 80 among distinct actual judge models. Same-model fallback replicas do not establish independent agreement."
     )
-    for bot in run["targets"]:
-        family = bot.get("model", "").split("-")[0].lower()
-        if family and any(
-            family in j.get("model", "").lower() for j in run["config"].get("judges", [])
-        ):
+    from .bias import model_family
+
+    rules = protocol.get("model_families", settings_file().get("model_families", {}))
+    judge_models = [j.get("model", "") for r in eligible for j in r.get("judges", [])] + [
+        j["model"] for j in run["config"].get("judges", [])
+    ]
+    judge_families = {model_family(m, rules) for m in judge_models} - {""}
+    for slot, bot in enumerate(run["targets"]):
+        models = [bot.get("model", "")] + [
+            t.get("response_metadata", {}).get("model", "")
+            for c in run["cases"]
+            for t in c["results"][slot].get("transcript", [])
+        ]
+        shared = {model_family(m, rules) for m in models} & judge_families
+        if shared:
             run["studio"]["warnings"].append(
                 "Same model family: "
                 + bot["name"]
-                + " and a selected judge. Scores may share model bias."
+                + " and judge ("
+                + ", ".join(sorted(shared))
+                + "). Shared model bias may affect scores."
             )

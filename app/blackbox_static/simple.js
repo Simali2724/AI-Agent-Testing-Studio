@@ -80,7 +80,7 @@ function planned() {
     0,
   );
   $("planned").textContent =
-    `${settings.cases.length} categories × distinct cases × chosen repeats = ${repeats} case executions per bot; ${repeats * botCount} planned bot case executions. Multi-turn and paired cases contain several messages.`;
+    `${settings.cases.length} categories; ${repeats} outcome records per bot × ${botCount} bots. Bias includes derived algorithmic records (no bot request); each other repeat makes fresh bot calls. Paired and multi-turn cases contain several messages.`;
 }
 function judges() {
   return [...document.querySelectorAll(".judge")]
@@ -129,11 +129,8 @@ function configuration() {
     references: JSON.parse($("references").value || "[]"),
     policy: $("policy").value,
     scope: $("scope").value,
-    timeout: 60,
-    max_minutes: 180,
-    case_concurrency: 2,
-    target_concurrency: 2,
-    judge_concurrency: 1,
+    ...settings.execution,
+    retention_days: Number($("retention").value),
   };
 }
 const money = (n) => (n == null ? "Unknown" : "$" + (n / 1000000).toFixed(6));
@@ -314,7 +311,7 @@ function render(run) {
             .filter((c) => c.category === item.category)
             .map(
               (c) =>
-                `<h4>${esc(c.name)} — case ${c.scenario_index || 1}, repeat ${c.repeat}</h4><div class="grid">${c.results.map((r, i) => `<article><strong>${esc(run.targets[i].name)} — ${esc(r.status.replaceAll("_", " "))}</strong><p>Score: ${r.score ?? "Not tested (index contribution 0)"}${r.score == null ? "" : "%"}</p><p>${esc(r.reason)}</p>${(r.judges || []).map((j) => `<p>Judge: ${esc(j.model)} — ${j.score}%<br>Evidence: ${j.evidence.map(esc).join(" | ")}</p>`).join("")}${r.transcript.map((t) => `<div class="transcript"><strong>User:</strong> ${esc(t.input)}\n<strong>Bot:</strong> ${esc(t.output || t.error || "No response")}\nTime: ${t.seconds ?? "Unknown"} seconds</div>`).join("")}${!active ? `<button data-review="${esc(c.id)}" data-slot="${i}">Add human review</button>` : ""}</article>`).join("")}</div>`,
+                `<h4>${esc(c.name)} — case ${c.scenario_index || 1}, repeat ${c.repeat}</h4><div class="grid">${c.results.map((r, i) => `<article><strong>${esc(run.targets[i].name)} — ${esc(r.status.replaceAll("_", " "))}</strong><p>Score: ${r.score ?? "Not tested (index contribution 0)"}${r.score == null ? "" : "%"}</p><p>${r.human_review_note ? "<strong class=badge>Overridden — reason logged</strong> " : ""}${r.needs_review ? "<strong>Needs human review</strong> " : ""}${esc(r.reason)}</p>${(r.judges || []).map((j) => `<p>Judge: ${esc(j.model)} — ${j.score}%<br>Evidence: ${j.evidence.map(esc).join(" | ")}</p>`).join("")}${r.transcript.map((t) => `<div class="transcript"><strong>User:</strong> ${esc(t.input)}\n<strong>Bot:</strong> ${esc(t.output || t.error || "No response")}\nTime: ${t.seconds ?? "Unknown"} seconds</div>`).join("")}${!active && r.transcript.some((t) => t.output) ? `<button data-review="${esc(c.id)}" data-slot="${i}">Add human review</button>` : ""}</article>`).join("")}</div>`,
             )
             .join("")}</details>`,
       )
@@ -341,8 +338,9 @@ function render(run) {
   );
   $("audit").innerHTML =
     `<p>Run ID: ${esc(run.id)}. Agreement measured on ${studio.agreement_cases || 0} conversations with distinct valid judge models. Agreement: ${studio.agreement_percent ?? "Not measured"}%. ${esc(studio.agreement_definition || "")}</p><pre>${esc(JSON.stringify(run.audit || [], null, 2))}</pre>`;
+  renderGovernanceExtras(run);
   $("downloads").innerHTML =
-    `<a href="/api/blackbox/runs/${run.id}/download?format=json">Download JSON</a><a href="/api/blackbox/runs/${run.id}/download?format=pdf">Download PDF</a>`;
+    `<a href="/governance.html?run=${run.id}">Governance / Reproduce</a><a href="/api/blackbox/runs/${run.id}/download?format=json">Download JSON (PII redacted)</a><a href="/api/blackbox/runs/${run.id}/download?format=pdf">Download PDF</a>`;
 }
 async function poll() {
   if (!runId || pollBusy) return;
@@ -376,7 +374,7 @@ async function loadHistory() {
 async function boot() {
   settings = await api("/api/studio/settings");
   $("suite-intro").textContent =
-    `${settings.cases.length} categories with ${settings.scenario_sets ? 10 : 1} distinct cases each. Choose repeats per case. Repeats measure consistency, not additional independent coverage.`;
+    `${settings.cases.length} categories. Bias contains nine tagged sub-tests (eight conversations plus one derived disparity index). Choose repeats per case. Repeats measure consistency, not additional independent coverage.`;
   addBot();
   $("checks").innerHTML = settings.cases
     .map(
@@ -500,3 +498,44 @@ boot().catch((error) => tell(error.message));
 setInterval(() => {
   if (current && ["queued", "running"].includes(current.status)) poll();
 }, 2500);
+
+let liveEvents = null;
+let liveRun = "";
+function renderGovernanceExtras(run) {
+  $("bias-details").innerHTML = (run.studio?.bots || [])
+    .map(
+      (bot) =>
+        `<h3>${esc(bot.name)} — Bias sub-tests</h3>${(bot.bias_subtests || []).map((s) => `<details><summary>${esc(s.name || s.subtype)}: ${s.score}% • ${esc(s.status)} • severity ${esc(s.severity)}</summary><p>${esc(s.reason)}</p><div class="grid">${s.evidence.map((e) => `<article class="transcript"><strong>${esc(e.prompt)}</strong><p>${esc(e.excerpt)}</p></article>`).join("")}</div><small>${esc(s.signals?.limitation || (s.subtype === "algorithmic" ? "Derived aggregate; source pairs are linked in the JSON." : "No screening signals were recorded for this historical result."))}</small></details>`).join("")}`,
+    )
+    .join("");
+  const overrides = run.cases.flatMap((c) => c.results).filter((r) => r.human_review_note).length;
+  $("integrity").innerHTML =
+    `<h3>Run integrity</h3><p>${run.cases.filter((c) => c.completed).length}/${run.cases.length} records processed. ${overrides} overrides. Judge agreement: ${run.studio?.agreement_percent ?? "Not measured"}%. <a href="/governance.html?run=${encodeURIComponent(run.id)}">Verify audit chain and inspect cards</a></p>`;
+  if (liveRun !== run.id) {
+    liveEvents?.close();
+    liveRun = run.id;
+    liveEvents = new EventSource(`/api/studio/runs/${run.id}/events`);
+    liveEvents.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      $("live-progress").innerHTML =
+        `<p>Active run time: ${data.active_seconds}s. Bot time sums exclude queueing; concurrent work overlaps.</p>` +
+        table(
+          ["Bot", "Category", "Processed / planned", "Scored", "Bot seconds", "Case work seconds"],
+          data.bots.flatMap((b) =>
+            b.categories.map((c) => [
+              esc(b.name),
+              esc(c.category),
+              `${c.processed}/${c.planned}`,
+              c.scored,
+              c.bot_seconds,
+              c.case_work_seconds,
+            ]),
+          ),
+        );
+      if (!["running", "queued"].includes(data.status)) {
+        liveEvents.close();
+        liveRun = "";
+      }
+    };
+  }
+}

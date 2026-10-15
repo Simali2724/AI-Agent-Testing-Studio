@@ -12,7 +12,10 @@
       <div>
         <strong>AI Agent Studio</strong><span>Test conversations. Understand results.</span>
       </div>
-      <a href="/index.html">Advanced / previous studio</a>
+      <nav>
+        <a href="/governance.html">Governance</a> ·
+        <a href="/index.html">Advanced / previous studio</a>
+      </nav>
     </header>
     <main>
       <div id="notice" role="status" aria-live="polite"></div>
@@ -58,6 +61,14 @@
         </p>
         <div id="checks" class="checks"></div>
         <p id="planned"></p>
+        <label
+          >Keep run data (days; 0 = until you delete it)<input
+            id="retention"
+            type="number"
+            min="0"
+            max="3650"
+            value="0"
+        /></label>
         <label class="consent"
           ><input type="checkbox" id="consent" />Allow test messages and let the selected judges
           read answers and supplied reference facts. Calls may incur provider charges.</label
@@ -83,6 +94,9 @@
         <progress id="progress" max="100" value="0"></progress>
         <div id="verdict"></div>
         <div id="scores"></div>
+        <div id="live-progress" aria-live="polite"></div>
+        <div id="bias-details"></div>
+        <div id="integrity"></div>
         <div id="relevance-charts"></div>
         <div id="costs"></div>
         <div id="case-results"></div>

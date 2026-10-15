@@ -58,6 +58,19 @@ def generate_pdf(run):
         paragraph(
             "Existing measured-quality statistics below exclude missing evidence; the configured index above applies the requested zero contribution."
         )
+    if run.get("governance"):
+        paragraph("Governance and run integrity", "Heading1")
+        paragraph(json.dumps(run["governance"], ensure_ascii=False))
+        paragraph(run.get("export_privacy", {}).get("note", ""))
+    for bot in run.get("studio", {}).get("bots", []):
+        for sub in bot.get("bias_subtests", []):
+            paragraph(
+                f"{bot['name']} — Bias: {sub['subtype']} / {sub['status']} / severity {sub['severity']}",
+                "Heading2",
+            )
+            paragraph(sub["reason"])
+            for evidence in sub["evidence"]:
+                paragraph(evidence["prompt"] + "\n" + evidence["excerpt"])
     paragraph(run["score_formula"])
     for note in run.get("setup_notes", []):
         paragraph(note)

@@ -233,11 +233,19 @@ def estimate(config, cases):
         }
 
     bots = [
-        component(t.model, t.model_alias, t.local_model, sum(len(c["turns"]) for c in cases))
+        component(
+            t.model,
+            t.model_alias,
+            t.local_model,
+            sum(len(c["turns"]) for c in cases if not c.get("derived")),
+        )
         for t in config.targets
     ]
     judge_cases = (
-        sum(c["category"] != "performance" and not c["prerequisite"] for c in cases)
+        sum(
+            c["category"] != "performance" and not c["prerequisite"] and not c.get("derived")
+            for c in cases
+        )
         if config.judge_enabled
         else 0
     )
@@ -257,6 +265,26 @@ def estimate(config, cases):
         if config.secondary_judge_enabled
         else 0,
     )
+    if config.simple_mode:
+        primary = [j for j in config.judges if not j.fallback]
+        planned = [
+            component(
+                j.model,
+                j.price_alias or j.model,
+                j.local,
+                math.ceil(judge_cases * len(config.targets) / config.judge_batch_size),
+            )
+            for j in primary
+        ]
+        judge = {
+            **judge,
+            "model": "selected judge panel",
+            "calls": sum(j["calls"] for j in planned),
+            "cost_micro_usd": sum(j["cost_micro_usd"] for j in planned)
+            if all(j["cost_micro_usd"] is not None for j in planned)
+            else None,
+            "models": planned,
+        }
     combined = {
         **judge,
         "calls": judge["calls"] + second["calls"],

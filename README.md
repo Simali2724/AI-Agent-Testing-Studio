@@ -1,6 +1,6 @@
 # AI Agent Studio
 
-Test one chatbot or compare up to four using the same **10 checks**. Each check runs **3 times** by default; change the repeat number on screen.
+Test one chatbot or compare up to four using the same **10 categories**. Each category runs **3 repeats** by default; change the repeat number on screen.
 
 ## Start
 
@@ -35,3 +35,5 @@ ZIP uploads are stored safely. **An isolated ZIP execution runner is still a sep
 Read [the detailed simple guide](docs/simple-guide.md) for configuration, recovery and optional Docker. [Previous documentation](docs/legacy-guide.md) and the older interface at `/index.html` remain available for historical runs.
 
 [PROGRESS.md](PROGRESS.md) records changes and verification. [HANDOFF.md](HANDOFF.md) describes remaining work.
+
+Bias now includes nine sub-tests under one bar. Open **Governance** to inspect audit integrity, reproduce runs, set retention or delete local results. See [the bias and governance guide](docs/bias-governance.md).

@@ -18,6 +18,7 @@ from . import database as db
 from .blackbox import metering, pricing
 from .blackbox.catalog import build_cases
 from .blackbox.cost_summary import estimate
+from .blackbox.governance_routes import router as governance_router
 from .blackbox.reports import generate_pdf
 from .blackbox.runner import ACTIVE, TASKS, aggregate, execute, make_run, now, save
 from .blackbox.schema import CATEGORIES, CATEGORY_DETAILS, ImportedCase, Settings, Target
@@ -28,9 +29,23 @@ from .config import MAX_UPLOAD, ROOT, RUNTIME
 @asynccontextmanager
 async def lifespan(app):
     metering.recover_interrupted()
+    from .blackbox.governance import expire_runs
+
+    expire_runs(set(ACTIVE))
     recovery_ids = []
     for run in db.all_records("blackbox"):
         if run["status"] in ("queued", "running"):
+            from .blackbox.governance import restore_journal
+
+            try:
+                restore_journal(run)
+            except ValueError:
+                run.update(
+                    status="integrity_error",
+                    stage="Audit journal failed verification; manual inspection required",
+                )
+                db.save("blackbox", run)
+                continue
             run.update(status="interrupted", finished_at=now(), stage="interrupted")
             for c in run["cases"]:
                 for r in c["results"]:
@@ -61,7 +76,15 @@ async def lifespan(app):
                     reason="Automatic resume needs valid credentials or capacity. Use Resume missing cases.",
                 )
                 save(previous)
+    from .blackbox.governance_routes import retention_worker
+
+    retention_task = asyncio.create_task(retention_worker())
     yield
+    from .blackbox.classifier_runtime import close_all
+
+    close_all()
+    retention_task.cancel()
+    await asyncio.gather(retention_task, return_exceptions=True)
     for event in ACTIVE.values():
         event.set()
     for task in list(TASKS):
@@ -255,10 +278,11 @@ async def estimate_cost(config: Settings):
 
     if not config.judge_model:
         config.judge_model = judge_defaults()["model"]
-    config.price_snapshot_id = ""
-    config.cost_settings_snapshot = {}
+    if not config._reproduced_from:
+        config.price_snapshot_id = ""
+        config.cost_settings_snapshot = {}
     for target in config.targets:
-        if not target.model_alias:
+        if not target.model_alias and not config._reproduced_from:
             target.model_alias = pricing.settings()["aliases"].get(target.name, "")
     # A local Reliance health response provides its configured model; arbitrary
     # websites cannot reveal their hidden model and must keep an unknown price.
@@ -339,6 +363,11 @@ async def start(config: Settings):
     config.price_snapshot_id = ""
     config.cost_settings_snapshot = {}
     run = make_run(config)
+    if config._reproduced_from:
+        from .blackbox.studio_engine import audit
+
+        run["reproduced_from"] = config._reproduced_from
+        audit(run, "reproduced", source_run=config._reproduced_from)
     save(run, config)
     ACTIVE[run["id"]] = asyncio.Event()
     task = asyncio.create_task(execute(run, config))
@@ -520,7 +549,9 @@ def stop(ident: uuid.UUID):
 
 @app.get("/api/blackbox/runs/{ident}/download")
 def download(ident: uuid.UUID, format: str = "json"):
-    run = get_run(ident)
+    from .blackbox.governance import export_run
+
+    run = export_run(get_run(ident))
     if format == "json":
         return Response(
             json.dumps(run, ensure_ascii=False, indent=2),
@@ -634,6 +665,10 @@ def delete_run(ident: uuid.UUID):
         raise HTTPException(
             409, "This run is a saved baseline. Keep it or replace the baseline first."
         )
+    from .blackbox.governance import purge_run
+
+    purge_run(value)
+    (RUNTIME / "reports" / f"blackbox-{value}.pdf").unlink(missing_ok=True)
     with db.connect() as conn:
         metering.init_db(conn)
         conn.execute("DELETE FROM usage_events WHERE run_id=?", (value,))
@@ -645,6 +680,8 @@ def delete_run(ident: uuid.UUID):
 
 
 app.include_router(studio_router)
+
+app.include_router(governance_router)
 
 
 @app.get("/")

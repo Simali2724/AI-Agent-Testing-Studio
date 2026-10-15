@@ -49,7 +49,13 @@ async def settings():
 def prepare(config: Settings, protocol: dict | None = None) -> Settings:
     from .easy_setup import BASE_POLICY, judge_defaults
 
+    is_new = protocol is None
     protocol = protocol or settings_file()
+    config._protocol_override = protocol
+    if is_new:
+        config.judge_batch_size = protocol.get("judge_batch_size", config.judge_batch_size)
+        config.judge_batch_wait_ms = protocol.get("judge_batch_wait_ms", config.judge_batch_wait_ms)
+        config.local_classifiers = protocol.get("local_classifiers", config.local_classifiers)
     config.simple_mode = True
     config.categories = [c["category"] for c in protocol["cases"]]
     config.policy = config.policy or BASE_POLICY
@@ -99,12 +105,24 @@ async def update_judges(ident: uuid.UUID, update: JudgesUpdate):
     cfg, run = LIVE_CONFIGS[key], LIVE_RUNS[key]
     if not any(not j.fallback for j in update.judges):
         raise HTTPException(422, "Select a primary judge.")
+    import hashlib
+
+    def fingerprint(j):
+        return (
+            hashlib.sha256(j.token.get_secret_value().encode()).hexdigest()[:12]
+            if j.token
+            else "saved-or-none"
+        )
+
+    switches = [{"model": j.model, "credential_fingerprint": fingerprint(j)} for j in update.judges]
+    cfg._used_secrets.extend(j.token.get_secret_value() for j in cfg.judges if j.token)
     cfg.judges = update.judges
     cfg = prepare(cfg, run.get("protocol_snapshot"))
     run["config"]["judges"] = [j.model_dump(exclude={"token"}) for j in cfg.judges]
     audit(
         run,
         "judges_changed",
+        credential_switches=switches,
         models=[j.model for j in cfg.judges],
         note="In-flight calls retain previous model; future cases use updated selection.",
     )
@@ -176,6 +194,7 @@ def override(ident: uuid.UUID, value: Override):
         human_review_note=value.note,
         reason="Human review: " + value.note,
         estimated=False,
+        overridden=True,
     )
     save(aggregate(run))
     return {"saved": True}

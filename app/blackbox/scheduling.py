@@ -158,7 +158,10 @@ class Runtime:
             self.register(
                 self.shared.targets,
                 key(t.url),
-                config.target_concurrency,
+                min(
+                    config.target_concurrency,
+                    config.provider_limits.get(key(t.url), config.target_concurrency),
+                ),
                 config.request_pause_seconds,
             )
         if config.judge_enabled:
@@ -230,7 +233,7 @@ async def judge_call(config):
     gate = runtime.register(
         runtime.shared.judges,
         key(config.judge_url),
-        config.judge_concurrency,
+        config.provider_limits.get(key(config.judge_url), config.judge_concurrency),
         config.judge_pause_seconds,
     )
     async with runtime.shared.judge_totals["all"].slot(runtime):

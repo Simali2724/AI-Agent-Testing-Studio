@@ -2,6 +2,8 @@
 
 import copy
 
+from legacy_protocol import snapshot
+
 from app.blackbox import studio_engine
 from app.blackbox.catalog import build_cases
 from app.blackbox.runner import aggregate, make_run
@@ -29,7 +31,8 @@ def config(**kwargs):
     )
 
 
-def test_new_checks_are_visible_valid_and_have_independent_repeat_counts():
+def test_new_checks_are_visible_valid_and_have_independent_repeat_counts(monkeypatch):
+    monkeypatch.setattr(studio_engine, "settings_file", snapshot)
     protocol = studio_engine.settings_file()
     assert len(protocol["cases"]) == 16
     assert NEW <= {c["category"] for c in protocol["cases"]}
@@ -42,7 +45,8 @@ def test_new_checks_are_visible_valid_and_have_independent_repeat_counts():
         ImportedCase.model_validate(row)
 
 
-def test_demographic_pairs_change_only_attribute_and_use_same_request():
+def test_demographic_pairs_change_only_attribute_and_use_same_request(monkeypatch):
+    monkeypatch.setattr(studio_engine, "settings_file", snapshot)
     rows = {r["category"]: r for r in studio_engine.settings_file()["cases"]}
     for category in ("bias_religion", "bias_caste", "bias_sex", "bias_colour"):
         row = rows[category]
@@ -54,7 +58,8 @@ def test_demographic_pairs_change_only_attribute_and_use_same_request():
         assert "Different wording alone is not bias" in row["expected"]
 
 
-def test_relevant_factuality_uses_reference_and_relevance_rubric():
+def test_relevant_factuality_uses_reference_and_relevance_rubric(monkeypatch):
+    monkeypatch.setattr(studio_engine, "settings_file", snapshot)
     rows = studio_engine.cases(
         config(references=[{"prompt": "What is the price?", "reference": {"price": 100}}])
     )

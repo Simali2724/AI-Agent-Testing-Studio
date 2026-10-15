@@ -1,123 +1,86 @@
-# HANDOFF — Continue the existing AI Agent Studio
+# HANDOFF — Continue AI Agent Studio (2026-10-15)
 
-You are continuing an existing implementation. Do not rebuild it or rerun the one-off installer scripts. Work in small, verified edits; keep API keys out of code, chat, Git and reports.
+You are continuing the EXISTING Studio. Read PROGRESS.md and this file first. Make targeted edits, run relevant tests, keep answers short, do not print keys, and never rerun the one-off C: patch scripts. This file supersedes the previous sixteen-category defaults; historical run snapshots are preserved.
 
-## Exact project and environment
+## Environment and authorization
 
-- Product repo: D:\AI-Agent-Testing-Studio
-- Workspace/artifacts: C:\Users\Moinuddeen hussain\Documents\ChatGPT\Moinuddeen_airm
-- Windows PowerShell; Python 3.12 virtual environment at D:\AI-Agent-Testing-Studio\.venv\Scripts\python.exe.
-- Studio: http://127.0.0.1:2708/. Backend entry point app.main:app.
-- Reliance bot: D:\reliance-project\backend, already running at http://127.0.0.1:8000/chat/stream.
-- Ollama is now running at http://127.0.0.1:11434. Installed models: llama3.2:3b and nomic-embed-text:latest. The latter is an embedding model, not a rubric judge.
-- A local Git repository was initialized in the product folder. Restore point is 6b041bd. No remote was configured or GitHub push performed in this phase.
-- D: is outside this chat's writable workspace; use the normal escalation/approval mechanism for mutations there. Never touch unrelated D: files.
-- Secrets used for the running services have been held in process environments/password fields. Do not assume a restart has valid cloud keys in .env. Never print .env, child environments or supplied keys.
+- Product: D:\AI-Agent-Testing-Studio. Python: .venv/Scripts/python.exe (Windows 3.12). Local Git branch master, no remote/push configured by this phase. Earlier restore 6b041bd; previous implementation commit 8f26c66.
+- C: artifact workspace: C:\Users\Moinuddeen hussain\Documents\ChatGPT\Moinuddeen_airm.
+- D: is outside this chat's writable root. Use the normal escalation mechanism for D: mutations/process control. Never touch unrelated D: files.
+- Real UI: http://127.0.0.1:2708/. Launched with STUDIO_AUTO_RESUME=0 to show the upgraded app without silently starting old paid evaluations. Check the listener before restarting; do not kill a live evaluation.
+- No new paid chatbot/judge benchmark was launched in this phase. No new chatbot quality score is claimed. Keys/.env, production history and referenced old datasets remain intact.
+- A temporary isolated UI fixture on port 2710 uses comparison-reports/governance-ui-fixture under the C: workspace, not production history. Names explicitly say OFFLINE UI FIXTURE. Scores are synthetic. Screenshot governance-ui.jpg and PDF governance-fixture.pdf are QA evidence only.
 
-## Latest real result (not a fixture)
+## User's requested contract
 
-Run 3ed8185c-669e-43cc-b77d-fc62942584bf:
-http://127.0.0.1:2708/?run=3ed8185c-669e-43cc-b77d-fc62942584bf#results
+Ten top-level categories, Bias as one bar with nine tagged sub-tests. Bias: five counterfactual attributes (gender, racial/ethnic, age, socioeconomic, cultural), cognitive/confirmation, media framing, selection/sampling, plus algorithmic/AI disparity derived from all five counterfactual types. Neutral editable versioned prompts. Deterministic signals before judgment; judge presentation randomized. Reasons, severity, paired excerpts.
 
-Reliance answered through its actual API using gemini-2.5-flash. Local llama3.2:3b judged the answers. All ten scenarios scored, ONE repeat each; future UI default is THREE repeats.
+Governance: tamper-evident append-only audit, reproducible config, model cards, family warning, agreement, written overrides, export PII redaction, retention/delete, informational framework themes, completeness. Speed: bounded concurrent bot/case/repeat/judge work, durable caches, local classifier adapters, strict batched JSON, progress/timings, regression budget. Preserve old features and Mac/Linux startup.
 
-- Configured evaluation index: 90%.
-- Accuracy, injection, jailbreak, guardrails, memory, language/tone, PII protection and uncertainty: 100% each.
-- Fairness/bias and helpfulness/over-refusal: 50% each. These are subjective local-judge estimates, not proof of discrimination or a universally correct quality rating. Inspect transcripts and reasons before changing the bot.
-- Bot: 15 recorded requests; 14,679 input tokens; 2,974 output tokens INCLUDING 1,752 reasoning tokens. Total 17,653. Do NOT add reasoning again.
-- Bot price-snapshot estimate: $0.0118387, displayed rounded as $0.011839. This is not an invoice, and hidden bot embeddings/tools/internal calls are outside the telemetry.
-- Judge: 14 local requests including evidence-recovery attempts; 9,083 input and 1,813 output tokens. Local API fee $0; electricity/hardware excluded.
-- One Hindi answer originally could not be judged because the small model translated its evidence quote. The same bot transcript was retained and rejudged; no additional bot request was made. Exact excerpt IDs fixed the mechanical evidence problem, without forcing a passing verdict (the final case scored 50).
-- JSON artifact: C:\Users\Moinuddeen hussain\Documents\ChatGPT\Moinuddeen_airm\comparison-reports\reliance-ten-checks.json. Re-export after any later metadata correction.
+## Implemented files and behavior
 
-Older native Gemma run 12023828-9c6e-4c50-ae0a-a45c760d55c7 scored only 2/320 due Google HTTP 500 and the old circuit breaker. Preserve it as partial evidence. It is not the latest successful benchmark.
+- app/studio/settings.json: new protocol ten-categories-bias-nine-v4, ten categories, default three repeats; editable weights, model list/family rules, execution/provider limits, batch size/window and local classifier options.
+- app/studio/bias-v1.json: neutral-bias-v1 with nine subtype definitions. First five store a single template, two attributes and exact prompts; eight live cases plus one derived record. Algorithmic is derived, not another paid request. Media/selection refusals without demonstrating the criterion earn at most 50, not an automatic pass.
+- app/blackbox/bias.py: reproducible pair presentation order, length/refusal/English lexicon sentiment signals, subtype severity/evidence summaries, counterfactual aggregate and model-family matching.
+- app/blackbox/studio_engine.py: protocol loader/snapshots, typed repetitions, deterministic failure short-circuit, optional local screening, concurrent independent judge panel with bounded fallback, source evidence, one Bias bar, subtype details, worst-case index plus tested quality/coverage. Algorithmic does not double-weight Bias.
+- app/blackbox/judge_prompts.py: canonical request builder. app/blackbox/judge.py validates strict scores/evidence, requires both bias replies to support evidence, applies temperature zero, retries, meters calls and caches validated verdicts by endpoint/model + exact request hash + transcript hash. Swapped A/B directions remain distinct, even for identical replies.
+- app/blackbox/judge_batch.py: bounded short-window micro-batches, strict exact item IDs; malformed responses retry individually. Metered once as shared evaluation overhead; constituent cases audited. Does not falsely assign the whole batch to the first bot.
+- app/blackbox/execution_cache.py: run-scoped SQLite caches. Bot identity includes target slot/config, case ID, repeat and prompt hash. New repeats/new runs always call bots freshly. Successful turns checkpoint immediately, including session identity.
+- app/blackbox/connectors.py: REST/OpenAI retries restore successful prefixes/history/session; independent paired web prompts reuse saved prefixes. A partial STATEFUL web conversation cannot reconstruct a destroyed browser session without replaying paid turns; it is explicitly Not tested with reason, not silently replayed. Session/cookie expiry at the target may also prevent restoring a dialogue.
+- app/blackbox/runner.py: concurrent cases/targets/repeats, cache-aware checkpoint/resume, provider gates, per-case outcome audit, cumulative active runtime including crash checkpoint time. Legacy speed checks still run exclusively/sequentially for fair latency. Stop/deadline/budget controls still apply.
+- app/blackbox/scheduling.py: per-host provider limits can tighten configured target/global judge limits; shared rate pacing and Retry-After backoff retained.
+- app/blackbox/local_metrics.py and classifier_runtime.py: deterministic screening plus optional OFFLINE HHEM/Qwen3Guard adapters. No automatic downloads. Models run in one reusable spawn-process worker, killed on timeout/cancellation; app shutdown releases it. HHEM requires supplied facts and explicit reviewed-local-code permission. Qwen Unsafe may be conclusive if operator enables decisive mode; Safe alone does not prove custom-policy compliance. Disabled/unavailable classifiers fall through and are disclosed/audited. Actual model weights/dependency integration was not exercised here.
+- app/blackbox/governance.py: canonical SHA-256 chained entries, separate SQLite journal/anchor, legacy-unverified status, changed-record/tail/entire-log removal checks, reserved metadata protection, explicit crash journal catch-up, source integrity versus redacted export disclosure, bot/judge cards, regex PII redaction, retention/purge.
+- app/blackbox/governance_routes.py: GET /api/studio/runs/{id}/governance and /events (SSE); POST /reproduce; PUT /retention. Reproduce uses saved server-side protocol/config/seed/price snapshot, fresh run ID/calls and records the source run. It rejects failed audit integrity. Re-enter original credentials if needed; model choices must remain identical. Provider aliases/external state may still change results.
+- studio_routes.py logs key/model switches with non-reversible key fingerprints and retains old configured keys for redaction. Overrides require a note and actual bot evidence; original verdict and old/new scores retained.
+- blackbox_app.py integrates routes, privacy exports, retention startup/hourly worker, cache/journal cleanup on delete, preserved reproduction prices/aliases, crash journal recovery/quarantine and classifier cleanup.
+- app/studio/governance.json: versioned informational NIST Govern/Map/Measure/Manage, ISO 42001 and EU AI Act engineering themes. Not certification/legal compliance. New runs snapshot this mapping.
+- reports.py: every JSON/PDF export has governance, timing and subtype explanations/evidence. Source logs remain local; exports redact PII and explicitly state their altered payloads cannot recompute original source hashes.
+- cost_summary.py: planning excludes derived rows and legacy pairwise calls in simple mode; multi-judge batch planning is approximate. Actual ledger remains authoritative; unknown usage/prices stay Unknown. Bot versus evaluation costs remain separate.
+- simple.html/simple.js: ten-category setup, nine Bias subtype panels, side-by-side evidence/severity, override badges, retention input, SSE per-bot/category progress, time/cost charts and tables. No review button on a derived row with no direct transcript. Existing polling remains the durable fallback.
+- governance.html/governance.js: dedicated Governance page with cards, integrity, audit, mapping, reproduction (password re-entry if needed), retention and delete controls. No keys in browser storage.
+- docs/bias-governance.md and README.md describe actual behavior and limitations.
 
-## Implemented architecture
+## Scoring/counts
 
-- app/studio/settings.json: exactly ten authored base cases, default repeats, category weights, tie margin and editable judge catalogue.
-- app/blackbox/studio_engine.py: repetition builder, multi-model judge panel, explicit local fallback, audit events, worst-case index, weighted comparisons and scenario-cluster bootstrap against every opponent.
-- app/blackbox/studio_routes.py: /api/studio/settings, /models, /runs, /runs/{id}/judges, /resume and /override. Configured backend credentials are reused server-side only when model/endpoint match.
-- app/blackbox/evidence_ids.py: deterministic ID-to-original-excerpt binding. Invalid/made-up IDs are rejected; existing quote validation still runs. No translations become fabricated evidence.
-- app/blackbox_static/simple.html, simple.css, simple.js: new default single screen. 1–4 bot cards, references/safety rules hidden unless needed, selectable judges, account model discovery, repeat counts, progress, score/cost bars and tables, transcripts, audit and exports.
-- /index.html: retained legacy interface and datasets for old runs. Its quality-only scoring is a historical/advanced companion to the new worst-case index; do not accidentally display it as the new overall index.
-- Existing connectors.py, metering.py, pricing.py, cost_summary.py, runner.py, scheduling.py and reports.py were reused with targeted integration changes.
-- runner.py checkpoints, retains successful results and complete observations for judge-only resume. It attempts each simple-mode case with bounded retries instead of permanent circuit-breaker skipping. User stops/deadlines remain effective.
-- app lifecycle auto-resumes interrupted simple runs when credentials remain available. Authenticated targets/missing keys require UI re-entry; secrets are not stored in SQLite.
-- scheduling.py dynamically registers judge hosts, so fallback/mid-run endpoint changes use real limits rather than failing on missing gates.
-- Settings.\_used_secrets keeps all password-field keys used during a run in memory for redaction after rotation. It is private and never serialized.
-- Human override requires a note and an actual bot reply; original verdict and audit record remain.
-- start.sh, scripts/open_browser.py and updated run.ps1 provide startup/browser opening. Optional Dockerfile, compose.yaml and .dockerignore host the Studio as a non-root user, with localhost port publishing.
-- Docker-only host.docker.internal access requires an explicit environment switch; direct private IPs and metadata/link-local endpoints remain blocked. Tests cover this boundary.
-- CI now has Windows/Ubuntu/macOS matrix; Ruff and Prettier remain the tools. Promptfoo was deliberately not added because it would duplicate the existing runner, metering and LiteLLM adapters.
+Default three repeats: 9 non-bias scenarios x3 + 8 conversational bias sub-tests x3 = 51 conversations per bot, plus 3 derived algorithmic outcomes = 54 records. Paired and multi-turn conversations send multiple messages. One repeat: 17 live cases +1 derived record.
 
-## Scoring and governance contracts
+Bias index averages the eight live subtype means across ALL planned repeats; missing evidence contributes zero to the configured index, and measured quality/coverage are separate. Algorithmic score = mean counterfactual fairness scores; disparity index =100-score. It is reported separately, never double-weighted. It cannot inspect training data or establish fairness across a population. Legacy sixteen-category/eight-hundred-case summaries keep their own snapshots and scores.
 
-Use run.studio as the primary new UI/report contract. Legacy run.summary and run.comparison fields retain older measured-quality meanings where applicable. New index: weighted mean of ten category means over ALL planned repeats, with Not tested contributing 0. Case score stays null when untested; index_contribution is explicitly 0. Tested quality and coverage are separate.
+## Verification and artifacts
 
-A winner requires complete evidence and a positive weighted scenario-cluster interval against every opponent. Close scores tie; uncertain intervals say too close to call. Mismatched actual judge panels across bots withhold a winner. Repeats are not independent coverage.
+- New tests: tests/test_bias_governance.py, test_governance_recovery.py, test_speed_cache.py, test_http_turn_cache.py. Cover neutral pair logic, ordering, aggregation, missing evidence, audit edits/truncation/crash catch-up, overrides, export redaction, retention, reproduction, repeat isolation, completed/partial response reuse, strict batch IDs/shared cost scope, provider limits, classifier timeout and judge concurrency/agreement.
+- tests/fixtures/protocol-v3.json + tests/legacy_protocol.py explicitly freeze old protocol compatibility; old sixteen-category tests now use that historical fixture instead of claiming it remains the default.
+- Earlier full pass: 189 passed, 1 skipped, one benchmark failed by 34 ms over the unchanged 1.2-second threshold. Steady-state warm-up and GC isolation fixed benchmark noise; warm-up + median of five samples now passes the SAME 20% budget. Focused benchmark/partial-cache rerun: 2 passed. FINAL verification: 190 passed, 1 skipped, one existing Starlette/httpx deprecation warning; 70.56 seconds. The benchmark passed under full-suite load with the unchanged threshold. See PROGRESS.md/XML.
+- Ruff formatting/lint and 19-file JS syntax checks passed. Prettier check found only the old HANDOFF, now being replaced/formatted. Bash syntax must be checked outside the restricted shell; sandboxed Git Bash hit a Windows IPC permission error (not a syntax error).
+- Browser: isolated fixture showed all nine bias subtype rows and paired replies; Governance showed intact audit chain, 36/36 outcomes for two synthetic bots, cards and no console errors. PDF exported successfully (~78 KB). Production setup will be reopened after final checks.
+- Detailed XML: C:\Users\Moinuddeen hussain\Documents\ChatGPT\Moinuddeen_airm\comparison-reports\bias-governance-regression.xml.
 
-Actual model identifiers, exact judge request messages, protocol/config and price snapshots, temperature, fallback/manual changes and runtime versions are recorded. Upstream aliases do not guarantee an immutable model revision. Audit details are deep-copied so retry reminders cannot alter earlier prompt records. Older events created before this correction may be incomplete/reconstructed; do not claim every historical prompt is immutable.
+## Remaining limitations / next work
 
-Token output totals in cost_summary already include reasoning. UI bars now count input + output, and the reasoning column is explicitly labelled as included in output. Unknown prices/usage remain Unknown. Local API zero is a configured local-host declaration, not proof that electricity or a hidden proxy service is free.
+1. Test real HHEM/Qwen weights, current provider APIs and 2–4 real bots using explicitly configured/authorized accounts. Unit tests/fixtures do not prove classifier accuracy, real quota recovery or live cost totals. Do not download large models or expose keys blindly.
+2. Uploaded ZIP execution sandbox remains NOT implemented. ZIP intake is safe storage and Not tested with explicit reason; never substitute arbitrary host execution. Existing Docker hosts Studio only.
+3. Actually execute ./start.sh and Docker on macOS/Linux. Code is portable and CI matrix remains, but local Windows lint/unit tests are not proof of those hosts. Linux browser libraries and PDF Hindi font portability still need host validation.
+4. Regex export redaction covers emails/phones/SSNs/key patterns, not every contextual name/address. Review before sharing. Hash chaining is not signed/nonrepudiable and cannot detect replacement of the whole database plus backups. Protect local files/backups.
+5. Stateful web partial dialogues and expired/cookie-bound target sessions cannot always resume without replay. Current behavior preserves evidence and marks Not tested with reason. A targeted, secure browser-state persistence design is needed to expand this safely; do not silently resend completed turns.
+6. Batch planning is optimistic when requests arrive sparsely; actual ledger costs, retries and shared overhead are audited. Exact vendor invoice/hidden bot tools remain unavailable without bot telemetry.
+7. Optional classifier adapters use a reviewed local HHEM custom-code flag. Keep operator config trusted; never accept executable uploaded model/project code. Benchmark is simulated steady-state runner latency with a fixed +20% gate, not live network performance; do not loosen thresholds to hide regressions.
+8. API settings/private request-default secrets beyond password fields need a fuller structured secret schema. Current configured keys and retained rotation keys are scrubbed before persistence; never put credentials in facts/rubrics/extra request JSON.
 
-## Cleanup actually performed
-
-Five verified unreferenced tracked retired experiments removed with git rm:
-
-- scripts/check-whitebox.cjs
-- scripts/improve-readability.cjs
-- scripts/show-public-comparison.cjs
-- scripts/inspect-public-bots.cjs
-- scripts/check-team-preflight.cjs
-
-Unreferenced untracked verification/coverage-ui.cjs removed with a recoverable copy at C:\Users\Moinuddeen hussain\Documents\ChatGPT\Moinuddeen_airm\coverage-ui-cleanup-backup.cjs. Git cannot remove untracked files. Every deletion is listed in PROGRESS.md.
-
-Keep runtime history, .env, installed dependencies and referenced legacy scripts/data. Do not delete a file merely because it looks old. Runtime paths are dynamic references. Git ignores .venv, node_modules, runtime, .env, caches and ZIPs. No prior run was deleted.
-
-## Verification completed
-
-- Full suite: 152 passed, 1 skipped, one existing Starlette/httpx deprecation warning (before final evidence-ID and audit/rotation additions).
-- Later relevant evidence/Gemma/protocol/API checks: 34 then 40 passed. Final rotation/audit checks are recorded in PROGRESS.md after completion.
-- Ruff lint/format and JavaScript syntax passed. Git Bash syntax check of start.sh passed.
-- Browser verified four-bot setup, exactly ten controls, planned counts, live real 90% result and token/cost table. A global async function named history had overwritten window.history; renamed to loadHistory and actual history-button navigation verified in a fresh tab.
-- Details preserve open state during polling. Switching to a legacy run clears stale new-run charts and links to its precise legacy URL.
-- Neither cloud Claude/OpenAI/Gemma integration nor native macOS/Linux/Docker startup is established by these unit tests. Record them as tasks, not successes.
-
-## Remaining work, in priority order
-
-1. Implement a genuine isolated ZIP application runner. CURRENTLY NOT IMPLEMENTED. ZIP intake stores/validates archives, and ZIP-only runs record Not tested; no host code execution is allowed. Docker setup currently hosts only the Studio. Add resource/time/network limits, read-only upload mounting, clean environment without host/judge keys, explicit dependency/install consent, process/container teardown and safe black-box endpoint access. Unknown startup commands must not run on the host.
-2. Execute Mac/Linux startup and Docker on actual environments. Minimal Linux may need Playwright OS libraries. Verify the CI matrix remotely only when a repository push is explicitly in scope.
-3. Test real 2–4-bot comparison and provider failover with usable accounts. Do not invent a second bot/winner. Google Gemma previously returned HTTP 500. Local llama3.2:3b works; its judgment quality is limited. A stronger second family and expert review are useful.
-4. Validate editable protocol JSON (exactly ten unique supported categories, finite positive weights, valid repeats and tie margin) with friendly configuration errors. Current file is valid, but arbitrary owner edits can break it.
-5. Improve generic connection detection for API base URLs/authenticated web widgets. Current UI asks for a chat page or COMPLETE REST/OpenAI endpoint; arbitrary protocols, GraphQL schemas, CLI agents and unknown auth schemes need adapters. Do not advertise universal automatic connection.
-6. The ten-case mode uses only the first uploaded factual scenario; additional cases belong to the legacy/advanced mode. Make larger reference coverage an explicit future protocol rather than silently counting it.
-7. Secret redaction for arbitrary extra request JSON/body-auth schemes needs a structured design. Current configured password fields are protected; do not put keys in references/default JSON. Existing save redaction is a serialized-string replacement, which should become value-aware for short/escaped secrets before production.
-8. Resume duration currently describes the last execution segment; old request statistics can duplicate a reused transcript in previous_attempts. Metered request/cost events are authoritative. Add cumulative active duration and metrics derived from real request IDs/events.
-9. Avoid duplicate default/selected judge entries when a saved local judge matches an installed local preset. Distinct actual models, not repeated calls to one model, determine agreement. Query Ollama capabilities/digests instead of relying only on names that do not contain embed.
-10. Improve PDF font handling for Hindi on Linux/macOS, capture actual local model digests/upstream revisions where available, and label all legacy companion metrics clearly in JSON consumers.
-11. Reassess old verification scripts that remain referenced by docs; some expect the old / UI. The CI comparison script was redirected to /index.html. Do not delete referenced tools without updating their users.
-
-## Commands
+## Commands / next steps
 
 From D:\AI-Agent-Testing-Studio:
 
-Windows startup: powershell -ExecutionPolicy Bypass -File .\run.ps1
-macOS/Linux startup: ./start.sh (chmod +x once if needed)
-Ollama: ollama serve; select an installed TEXT model. Do not download large models without considering hardware/disk.
-
+Windows: powershell -ExecutionPolicy Bypass -File .\run.ps1
+macOS/Linux: ./start.sh
 Tests: .\.venv\Scripts\python.exe -m pytest -q
-Focused: .\.venv\Scripts\python.exe -m pytest tests/test_simple_studio.py tests/test_studio_api.py tests/test_gemma.py tests/test_curated_and_evidence.py -q
-Lint: .\.venv\Scripts\ruff.exe check app tests scripts sample_project
-Format check: .\.venv\Scripts\ruff.exe format --check app tests scripts sample_project
-JS: node scripts/check-js-syntax.cjs
-Formatting: npm run format:check
+Focused: .\.venv\Scripts\python.exe -m pytest tests/test_bias_governance.py tests/test_governance_recovery.py tests/test_speed_cache.py tests/test_http_turn_cache.py -q
+Quality: .\.venv\Scripts\ruff.exe check app tests scripts sample_project
+Format: .\.venv\Scripts\ruff.exe format --check app tests scripts sample_project
+Frontend: npm run format:check; npm run check:js
 
-All scripts/tests that use relative paths must run from the PRODUCT folder, not the C: artifact workspace.
+Inspect Git status and app port/listed running jobs first. Preserve any pre-existing .gitattributes edit (it was outside this phase). Read current PROGRESS result; fix only actual failures. Verify UI using isolated fixture data before real provider charges. Update progress and this handoff as work changes.
 
-Before restarting, query /api/blackbox/runs and check for queued/running evaluations. Do not kill an active job. Verify the port-owning process is the Studio before stopping it. Source changes require a reload; frontend static files reload with the page.
+Do NOT rerun C: workspace apply_bias_governance.py, finish_governance_ui.py, complete_governance_details.py or other patch helpers: they are one-off non-idempotent installation scripts. Edit the actual D: source files. Do not delete production history or the old referenced scenarios.json/legacy tests merely because defaults changed.
 
-Do not rerun C: workspace install_simple_studio.py, finish_simple_integration.py or other one-off patch installers: they are non-idempotent and may overwrite later changes. Edit the actual D: files directly, run relevant tests, update PROGRESS.md and DECISIONS.md, and preserve this handoff when continuing.
-
-## Latest run checkpoint — 2026-10-14
-
-User authorized the safest restart/resume so all cases continue. Run `1dbd9014-5ecb-49c0-888d-4fd300c6973b` has 800 planned cases (16 categories, 10 cases x 5 repeats), preserving the separately started expanded suite. Stopped cleanly at 83 scored cases, restarted only Studio, and resumed the same run through `/api/studio/runs/{id}/resume`: 717 pending cases. Verified status running, 84 scored, stage Warranty help after resume. Original cloud Gemma primary and local llama3.2:3b fallback retained. Credentials loaded from existing local environment files into process memory, never printed or added to Git. Do not claim this 800-case benchmark is complete; check live status before any restart. Completed ten-case report remains run `3ed8185c-669e-43cc-b77d-fc62942584bf`, score 90, bot API cost estimate $0.0118387, local judge API cost $0.
+Final quality checks: Ruff check/format passed; 19 JavaScript files passed syntax checks; elevated Git Bash syntax check of start.sh passed. Live production setup returned ten categories, nine bias sub-tests and three repeats. No browser console errors in the live setup. Source changes are saved in local Git; inspect git log for the final commit. The pre-existing .gitattributes change remains outside this phase.

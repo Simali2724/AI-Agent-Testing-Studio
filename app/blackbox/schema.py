@@ -110,6 +110,8 @@ class ExactChecks(BaseModel):
 class ImportedCase(BaseModel):
     model_config = {"extra": "forbid"}
     category: str
+    bias_subtype: str = ""
+    derived: bool = False
     name: str = Field(min_length=1, max_length=200)
     turns: list[str] = Field(min_length=1, max_length=8)
     expected: str = Field(min_length=1, max_length=12000)
@@ -170,6 +172,13 @@ class JudgeSelection(BaseModel):
 
 class Settings(BaseModel):
     simple_mode: bool = False
+    retention_days: int = Field(default=0, ge=0, le=3650)
+    judge_batch_size: int = Field(default=1, ge=1, le=8)
+    judge_batch_wait_ms: int = Field(default=40, ge=0, le=200)
+    local_classifiers: dict = Field(default_factory=dict)
+    provider_limits: dict[str, int] = Field(default_factory=dict)
+    _protocol_override: dict | None = PrivateAttr(default=None)
+    _reproduced_from: str = PrivateAttr(default="")
     judges: list[JudgeSelection] = Field(default_factory=list, max_length=8)
     repeat_counts: dict[str, int] = Field(default_factory=dict)
     category_weights: dict[str, float] = Field(default_factory=dict)
@@ -223,6 +232,8 @@ class Settings(BaseModel):
     def check(self):
         if any(type(n) is not int or not 1 <= n <= 20 for n in self.repeat_counts.values()):
             raise ValueError("Repeat counts must be integers between 1 and 20.")
+        if any(type(n) is not int or not 1 <= n <= 16 for n in self.provider_limits.values()):
+            raise ValueError("Provider concurrency limits must be integers from 1 to 16.")
         import math
 
         if any(not math.isfinite(n) or n <= 0 for n in self.category_weights.values()):

@@ -152,7 +152,9 @@ class Connector:
 
     async def http_conversation(self, case, client):
         transcript = []
-        session = str(uuid.uuid4())
+        resume = case.get("resume_observation") or {}
+        prefix = resume.get("transcript", [])
+        session = resume.get("session_id") or str(uuid.uuid4())
         history = []
         usage = []
         for turn_index, prompt in enumerate(case["turns"]):
@@ -161,6 +163,15 @@ class Connector:
                 session = str(uuid.uuid4())
                 client.cookies.clear()
             history.append({"role": "user", "content": prompt})
+            if (
+                turn_index < len(prefix)
+                and prefix[turn_index].get("input") == prompt
+                and prefix[turn_index].get("output")
+            ):
+                transcript.append(prefix[turn_index])
+                history.append({"role": "assistant", "content": prefix[turn_index]["output"]})
+                usage.append((resume.get("usage") or [None] * len(prefix))[turn_index])
+                continue
             t = self.target
             headers = {}
             if t.token:
@@ -247,6 +258,9 @@ class Connector:
                         "response_metadata": data.get("stream_metadata", {}),
                     }
                 )
+                from .execution_cache import checkpoint_turns
+
+                checkpoint_turns(case, transcript, usage, session)
             except (metering.BudgetLimit, Halted, asyncio.CancelledError) as exc:
                 exc.observation = {"transcript": transcript, "usage": usage, "error": str(exc)}
                 raise
@@ -292,6 +306,14 @@ class Connector:
             try:
                 await page.goto(t.url, wait_until="domcontentloaded")
                 for turn_index, prompt in enumerate(case["turns"]):
+                    prefix = (case.get("resume_observation") or {}).get("transcript", [])
+                    if (
+                        turn_index < len(prefix)
+                        and prefix[turn_index].get("input") == prompt
+                        and prefix[turn_index].get("output")
+                    ):
+                        transcript.append(prefix[turn_index])
+                        continue
                     if case["parallel"] and transcript:
                         await context.close()
                         context = await browser.new_context(
@@ -376,6 +398,9 @@ class Connector:
                             "transport": "browser",
                         }
                     )
+                    from .execution_cache import checkpoint_turns
+
+                    checkpoint_turns(case, transcript, [])
                 return {"transcript": transcript, "error": None, "usage": []}
             except (metering.BudgetLimit, Halted, asyncio.CancelledError) as exc:
                 exc.observation = {"transcript": transcript, "usage": [], "error": str(exc)}

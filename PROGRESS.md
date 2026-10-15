@@ -89,3 +89,33 @@ In progress: exactly ten base scenarios with configurable repetitions, multi-jud
 ## Latest run checkpoint — 2026-10-14
 
 User authorized the safest restart/resume so all cases continue. Run `1dbd9014-5ecb-49c0-888d-4fd300c6973b` has 800 planned cases (16 categories, 10 cases x 5 repeats), preserving the separately started expanded suite. Stopped cleanly at 83 scored cases, restarted only Studio, and resumed the same run through `/api/studio/runs/{id}/resume`: 717 pending cases. Verified status running, 84 scored, stage Warranty help after resume. Original cloud Gemma primary and local llama3.2:3b fallback retained. Credentials loaded from existing local environment files into process memory, never printed or added to Git. Do not claim this 800-case benchmark is complete; check live status before any restart. Completed ten-case report remains run `3ed8185c-669e-43cc-b77d-fc62942584bf`, score 90, bot API cost estimate $0.0118387, local judge API cost $0.
+
+## 2026-10-15 — Bias and governance phase
+
+- New defaults restore ten categories and three repeats. Bias has eight neutral paired probes plus a derived algorithmic disparity index; prior sixteen-category run snapshots remain unchanged.
+- Added editable app/studio/bias-v1.json, pair-order randomization and descriptive pre-judge signals. Algorithmic aggregate does not double-weight Bias.
+- Added SQLite-anchored hash chain, Governance page, reproduction, overrides badge, redacted export, retention and delete cleanup. Tests and live verification follow; no new quality scores claimed.
+
+## 2026-10-15 — execution and verification phase
+
+- Added run-scoped durable bot cache (separate repeat keys) and validated judge cache keyed by canonical request and transcript hashes. Swapped A/B orders remain independent. Cached resumes do not issue another bot request.
+- Independent judge selections now run concurrently behind existing global/provider gates. Strict JSON micro-batching rejects missing/duplicate IDs and falls back to individual requests; shared batch cost is counted once, not assigned to the first bot.
+- Added exact-canary short-circuit, descriptive PII/refusal/length signals and optional offline HHEM/Qwen adapters. Local models are not downloaded or claimed installed; bounded subprocess inference terminates on timeout.
+- Added SSE per-bot/category progress, cumulative active duration and report timing data. A pinned simulated runner benchmark enforces a 20% regression budget.
+- Verification milestones: 56 focused scoring/evidence/cost tests passed; 47 bias/governance/recovery/cache/concurrency tests passed (overlap exists). Browser verified all nine bias subtype rows, paired evidence and an intact governance panel against an isolated synthetic fixture; JSON/PDF export worked. No live bot/provider calls were issued for these checks.
+- Restored old sixteen-category/eight-hundred-case compatibility tests using an explicit historical protocol fixture. No production history, keys or old results were deleted.
+
+## 2026-10-15 — final corrections and handoff
+
+- Full regression isolated three compatibility defects (credential mask spelling and minimal disabled-classifier fixtures), then fixed them; 23 targeted privacy/fallback/governance checks passed.
+- Partial API conversations now checkpoint each successful turn and resume its session/history without repeating those answers. Stateful web partial sessions fail visibly if they cannot be restored without replay; paired web requests remain independent.
+- A full run produced 189 passed, 1 skipped and one timing failure (1.234 s vs fixed 1.2 s). Added unmeasured warm-up, explicit GC isolation and median-of-five steady-state measurement; the SAME threshold passes. No tolerance/baseline increase was made to hide a regression. Final full-suite verification follows.
+- Updated HANDOFF.md as a self-contained continuation prompt, with exact paths, implemented contracts and remaining real integration limitations. No new paid benchmark or new chatbot score claimed.
+
+## Final verified checkpoint — 2026-10-15
+
+- Final COMPLETE regression suite: **190 passed, 1 skipped**, one existing Starlette/httpx deprecation warning; 70.56 seconds. Fixed 20% benchmark gate also passed under full-suite load.
+- Ruff check/format passed; 19 JavaScript syntax checks passed; Git Bash start.sh syntax check passed with normal escalation after the restricted IPC error.
+- Live setup http://127.0.0.1:2708 returned ten categories, nine bias sub-tests and default three repeats. Browser showed the correct derived-record count and no console errors. Screenshot: comparison-reports/studio-bias-governance-live.jpg outside the product repo.
+- Upgraded Studio is running with historical auto-resume disabled for this launch; no new paid evaluation or new chatbot quality result was produced during feature verification. Historical data is preserved.
+- Local-classifier weights, real cloud-provider integration and actual macOS/Linux/Docker execution remain explicit integration tasks. Partial stateful web sessions preserve evidence and become Not tested if safe restoration is impossible.

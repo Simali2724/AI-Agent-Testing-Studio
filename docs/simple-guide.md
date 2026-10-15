@@ -1,6 +1,6 @@
 # AI Agent Studio — simple guide
 
-Judge one bot, or compare up to four bots using the same ten conversations. Set repeats (default three), choose judge models, and read scores, transcripts, tokens and costs on one screen.
+Judge one bot, or compare up to four bots using the same ten categories (Bias expands into nine tagged sub-tests). Set repeats (default three), choose judge models, and read scores, transcripts, tokens and costs on one screen.
 
 ## Start
 
@@ -28,7 +28,7 @@ Tokens and dollar costs are shown separately for bots and judges, as bars and a 
 
 ## Configuration and development
 
-- `app/studio/settings.json`: ten scenarios, repeats, weights, tie margin and judge options.
+- `app/studio/settings.json`: ten categories, repeats, weights, tie margin, judge options and execution limits. Bias prompts are in `app/studio/bias-v1.json`.
 - `app/blackbox/studio_engine.py`: repeat building, multi-judge fallback, summary and governance.
 - `app/blackbox/studio_routes.py`: simple workflow, live judge changes and human review.
 - `app/blackbox_static/simple.*`: accessible offline UI and charts.
@@ -43,3 +43,5 @@ ZIPs are validated and stored, never executed on the host. This release has no i
 Optional Docker: copy `.env.example` to `.env`, configure your own keys, then `docker compose up --build`. Results persist in a named volume. Bot links must be accessible inside the container; use `host.docker.internal` for host services. Change local judge URL in settings for Docker. This is a local single-user tool; do not expose it publicly.
 
 Promptfoo was not added: existing LiteLLM adapters and black-box connector/runner reuse already cover this protocol, so a second runner would duplicate metering and governance.
+
+For current subtype scoring, hash-chain governance, reproduction, privacy, retention, caches and batching, read [the bias and governance guide](bias-governance.md).
