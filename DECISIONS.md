@@ -234,7 +234,6 @@ Formatting code does not establish an unimplemented capability.
 - Preserve original overridden findings, source hashes and anchored state hashes. Raw source uploads stay private until their retention expires; report secret findings contain only tails. Regex redaction is not comprehensive anonymization.
 - Keep the fixed benchmark threshold. Both baseline and modified code fail it on the current host; profiling/further performance work remains open instead of inflating the baseline.
 
-
 ## 2026-10-15 — Execute the requested source audit honestly
 
 - Keep scanner completion separate from a passing verdict. All 14 checks can process while six control questions remain Not tested: limited text rules found no sufficient evidence. Never invent controls or turn these into passes to satisfy a completion target.

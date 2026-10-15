@@ -48,7 +48,6 @@ Scanner image/DB execution, real HHEM accuracy and native macOS/Linux execution 
 
 References: [Gitleaks](https://github.com/gitleaks/gitleaks), [Semgrep local rules](https://docs.semgrep.dev/running-rules), [OSV offline mode](https://github.com/google/osv-scanner/blob/main/docs/offline-mode.md), [Trivy air gap](https://www.trivy.dev/docs/v0.55/guide/advanced/air-gap/). The [OWASP LLM Top 10](https://genai.owasp.org/llm-top-10/) and [NIST AI RMF](https://www.nist.gov/itl/ai-risk-management-framework) mapping is informational engineering guidance, not certification or legal compliance.
 
-
 ## Verified White scanner run and Windows/WSL notes
 
 The six scanner tools were actually run against a Python/Next.js source ZIP on Windows with Ubuntu WSL on 2026-10-15. This verifies that integration on this host, not native macOS/Linux behavior or comprehensive security coverage.

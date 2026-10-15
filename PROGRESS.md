@@ -167,7 +167,6 @@ User authorized the safest restart/resume so all cases continue. Run `1dbd9014-5
 - Remaining assurance work includes actual scanner/database/classifier integrations; broader semantic/control-flow coverage; cross-run model-version baselines; and freezing/checking scanner config/rules across reproduction (current reproduction freezes protocol/private input hashes, not an immutable scanner image/rules snapshot). Preserve these limits in product claims. Legacy old-run settings can omit newly added runtime defaults (notably local judge timeout 240); do not claim bit-identical reproduction of pre-upgrade execution.
 - Source changes are prepared for a scoped local implementation commit; inspect git log for its SHA. No GitHub push was performed.
 
-
 ## 2026-10-15 — Real White-box source audit completed
 
 - User requested every prior chatbot evaluation stopped and only digital-multi-agent-ai-main.zip scanned. Stopped d55be5cf-d8e0-4a31-a00f-d6f3467abc05 with an anchored user_stop event, retaining all scores/transcripts. Historical auto-resume remains disabled for this launch. No new Black/Gray conversations or LLM judge calls.
@@ -178,3 +177,9 @@ User authorized the safest restart/resume so all cases continue. Run `1dbd9014-5
 - SAME assessment 0941855a-1d8a-4571-95b7-bd15b4e5bc4e completed in 232.501 seconds after repair: 6/6 tools, 14/14 checks processed, 3 pass / 3 fail / 2 declarations / 6 insufficient-evidence Not tested. Source SHA-256 6753386792629121cbbdef878983f8e8c294c0ef014e212118895f3d1536d177. Audit valid. Original private upload deleted immediately after run.
 - Findings: one Low Bandit assert finding at backend/main.py:88; 137 OSV package/advisory matches; 11 Trivy findings. Scanner counts can overlap and are not a deduplicated vulnerability total. No container image was built/scanned: Trivy scanned filesystem dependencies; this archive contains no Dockerfile. Three clean checks are limited to selected Gitleaks/Semgrep rules, not proof of universal safety.
 - Verification: 52 focused scanner/assurance/API/UI tests passed; Ruff passed. Reports exported outside repo as comparison-reports/digital-white-audit.html, .pdf, .json. One public CVE identifier was over-redacted by the existing phone masker; the other advisory evidence remains linked, and redaction fidelity needs follow-up. No claim of a behavioral quality score, native cross-OS integration, or complete security coverage.
+
+## 2026-10-15 — Repair GitHub Actions formatting failure
+
+- Applied the pinned Prettier formatter to docs/assurance-guide.md, DECISIONS.md, HANDOFF.md and PROGRESS.md. The initial personal-repository CI failed on these Markdown files.
+- Disabled matrix fail-fast so a failure on one OS does not cancel the other Windows/Linux/macOS jobs. Kept all lint, formatting, UI and regression checks enabled. Application behavior, scores, local history and credentials are unchanged.
+- Verify with the exact npm run format:check command and the next GitHub Actions run; source changes remain limited to documentation formatting and this matrix setting.
