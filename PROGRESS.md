@@ -183,3 +183,11 @@ User authorized the safest restart/resume so all cases continue. Run `1dbd9014-5
 - Applied the pinned Prettier formatter to docs/assurance-guide.md, DECISIONS.md, HANDOFF.md and PROGRESS.md. The initial personal-repository CI failed on these Markdown files.
 - Disabled matrix fail-fast so a failure on one OS does not cancel the other Windows/Linux/macOS jobs. Kept all lint, formatting, UI and regression checks enabled. Application behavior, scores, local history and credentials are unchanged.
 - Verify with the exact npm run format:check command and the next GitHub Actions run; source changes remain limited to documentation formatting and this matrix setting.
+
+## 2026-10-15 — Cross-platform CI regression fixes
+
+- Fixed the macOS comparison smoke test by using Windows process flags only where supported. The fixture now confirms ownership, stores its screenshot in its temporary workspace, and closes database handles before cleanup.
+- Corrected the overlapping-run concurrency test to keep both leases active during the measurement. Added a separate event-driven test proving that releasing a stricter run restores the wider run's allowed concurrency.
+- Reuse idle SQLite connections per database path and thread. Nested/concurrent transactions get separate leases; FULL synchronous WAL commits, rollback, and evidence persistence are retained. Shutdown closes idle handles and lets active transactions finish before closing them.
+- Added six database regression tests for independent transactions, rollback, concurrent writes, reuse, durable reopen and shutdown. The existing performance baseline and 20% threshold are unchanged.
+- Local verification: 249 passed, 1 existing symlink-permission skip, 85.28 seconds. Ruff format/lint, Prettier, 24-file JavaScript syntax, nine navigation tests and the isolated four-bot comparison smoke test pass. No chatbot/provider calls were made. Native GitHub matrix verification follows the commit.

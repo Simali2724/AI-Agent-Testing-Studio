@@ -1,20 +1,79 @@
+"""Thread-owned SQLite leases: durable transactions without repeated WAL setup."""
+
+import atexit
 import json
 import sqlite3
+import threading
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 from .config import RUNTIME
 
 
+@dataclass
+class Lease:
+    connection: sqlite3.Connection
+    busy: bool = True
+    retiring: bool = False
+
+
+_pools: dict[tuple[str, int], list[Lease]] = {}
+_pool_lock = threading.Lock()
+
+
+def acquire(path: str) -> Lease:
+    """A connection is never leased concurrently or across request threads."""
+    key = (path, threading.get_ident())
+    with _pool_lock:
+        entries = _pools.setdefault(key, [])
+        for lease in entries:
+            if not lease.busy:
+                lease.busy = True
+                return lease
+        # Disabling the SQLite thread guard only permits shutdown cleanup from
+        # another thread. Operations remain owned by the lease's thread above.
+        connection = sqlite3.connect(path, timeout=30, check_same_thread=False)
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("PRAGMA synchronous=FULL")
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT PRIMARY KEY, body TEXT)"
+            )
+            connection.commit()
+        except BaseException:
+            connection.close()
+            raise
+        lease = Lease(connection)
+        entries.append(lease)
+        return lease
+
+
+def close() -> None:
+    """Close idle handles; active leases finish their transaction before closing."""
+    with _pool_lock:
+        for entries in _pools.values():
+            for lease in entries:
+                lease.retiring = True
+                if not lease.busy:
+                    lease.connection.close()
+        _pools.clear()
+
+
+atexit.register(close)
+
+
 @contextmanager
 def connect():
-    db = sqlite3.connect(RUNTIME / "studio.db", timeout=30)
+    path = str((RUNTIME / "studio.db").resolve())
+    lease = acquire(path)
     try:
-        db.execute("PRAGMA journal_mode=WAL")
-        db.execute("CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT PRIMARY KEY, body TEXT)")
-        with db:
-            yield db
+        with lease.connection:
+            yield lease.connection
     finally:
-        db.close()
+        with _pool_lock:
+            lease.busy = False
+            if lease.retiring:
+                lease.connection.close()
 
 
 def save(kind, value):

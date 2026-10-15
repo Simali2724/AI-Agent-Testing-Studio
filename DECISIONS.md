@@ -241,3 +241,9 @@ Formatting code does not establish an unimplemented capability.
 - Trivy's pinned version opens its public BoltDB read/write. Give it a disposable, size-limited private copy, not a writable source or writable shared database. Keep public DB updates outside evaluations.
 - Retain all advisories for every OSV-inventoried package; check final package coverage and snapshot hashes. A scoped DB cannot silently evaluate an unseen dependency. OSV uses a bounded 2 GiB/240-second limit; the scoped real scan completed in about two seconds.
 - Scanner scan time excludes provisioning. Report package/advisory matches rather than adding overlapping scanner counts into a supposed unique vulnerability number. No source-only audit establishes chatbot behavior quality or control effectiveness.
+
+## 2026-10-15 — Database leases and portable CI fixtures
+
+Retain thread-owned SQLite connections to avoid repeated WAL initialization on Windows. Each active context has an exclusive lease and its own transaction; nested contexts use separate connections. Explicit synchronous=FULL preserves durable commits. Application shutdown and fixture cleanup close idle handles, while active leases close after transaction completion. Tests cover commits, rollback, concurrent writes, nested contexts, reuse, file release and shutdown. The fixed speed regression threshold was not relaxed.
+
+Concurrency limits apply to active run leases: the strictest overlapping lease governs traffic, and its capacity restriction ends when that run closes. Test these two states separately with events instead of depending on which OS schedules a run to finish first. Comparison subprocess flags use a portable fallback on Linux/macOS; synthetic UI fixtures grant ownership explicitly and clean up their own files.

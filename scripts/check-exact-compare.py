@@ -7,16 +7,21 @@ import sys
 import tempfile
 import time
 import urllib.request
+from contextlib import ExitStack
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-with tempfile.TemporaryDirectory(prefix="studio-compare-ui-") as runtime:
+with ExitStack() as cleanup:
+    runtime = cleanup.enter_context(tempfile.TemporaryDirectory(prefix="studio-compare-ui-"))
     os.environ["STUDIO_RUNTIME"] = runtime
     from playwright.sync_api import sync_playwright
 
+    from app import database
     from app.blackbox import runner
     from app.blackbox.schema import Settings, Target
     from app.blackbox_app import exact_case_set
+
+    cleanup.callback(database.close)
 
     cfg = Settings(
         targets=[
@@ -47,7 +52,11 @@ with tempfile.TemporaryDirectory(prefix="studio-compare-ui-") as runtime:
                 reason="Synthetic UI assertion only",
                 seconds=0.1,
                 transcript=[
-                    {"input": "Fixture", "output": "safe" if i == 0 else "marker", "seconds": 0.1}
+                    {
+                        "input": "Fixture",
+                        "output": "safe" if i == 0 else "marker",
+                        "seconds": 0.1,
+                    }
                 ],
                 deterministic_checks=[{"kind": "forbidden", "term": "marker", "met": i == 0}],
             )
@@ -63,10 +72,19 @@ with tempfile.TemporaryDirectory(prefix="studio-compare-ui-") as runtime:
     runner.aggregate(run)
     runner.save(run, cfg)
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "2710"],
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "app.main:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "2710",
+        ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        creationflags=subprocess.CREATE_NO_WINDOW,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         cwd=Path(__file__).resolve().parents[1],
     )
     try:
@@ -86,7 +104,10 @@ with tempfile.TemporaryDirectory(prefix="studio-compare-ui-") as runtime:
             page = browser.new_page(viewport={"width": 1440, "height": 1000})
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
-            page.goto("http://127.0.0.1:2710/index.html?run=" + run["id"], wait_until="networkidle")
+            page.goto(
+                "http://127.0.0.1:2710/index.html?run=" + run["id"],
+                wait_until="networkidle",
+            )
             page.wait_for_selector("#comparison table")
             assert "Head-to-head matrix" in page.locator("#comparison").inner_text()
             assert page.locator("#summaries [data-baseline]").count() == 4
@@ -102,6 +123,7 @@ with tempfile.TemporaryDirectory(prefix="studio-compare-ui-") as runtime:
             assert page.locator("#targets .basic-target:visible").count() == 4
             page.select_option("#evaluation-method", "exact")
             page.check("#consent")
+            page.check("#ownership")
             for i in range(4):
                 page.fill(f"#url-{i}", f"http://localhost:{8800 + i}")
             page.locator("#advanced > summary").click()
@@ -165,7 +187,7 @@ with tempfile.TemporaryDirectory(prefix="studio-compare-ui-") as runtime:
             assert not errors, errors
             page.set_viewport_size({"width": 390, "height": 844})
             page.screenshot(
-                path=str(Path(__file__).resolve().parents[1] / "ui-mobile-check.png"),
+                path=str(Path(runtime) / "ui-mobile-check.png"),
                 full_page=False,
             )
             print(

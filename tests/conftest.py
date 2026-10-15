@@ -7,4 +7,7 @@ os.environ["STUDIO_RUNTIME"] = _runtime
 
 
 def pytest_sessionfinish(session, exitstatus):
+    from app import database
+
+    database.close()
     shutil.rmtree(_runtime, ignore_errors=True)

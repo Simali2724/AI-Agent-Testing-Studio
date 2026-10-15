@@ -22,7 +22,13 @@ from .blackbox.cost_summary import estimate
 from .blackbox.governance_routes import router as governance_router
 from .blackbox.reports import generate_pdf
 from .blackbox.runner import ACTIVE, TASKS, aggregate, execute, make_run, now, save
-from .blackbox.schema import CATEGORIES, CATEGORY_DETAILS, ImportedCase, Settings, Target
+from .blackbox.schema import (
+    CATEGORIES,
+    CATEGORY_DETAILS,
+    ImportedCase,
+    Settings,
+    Target,
+)
 from .blackbox.studio_routes import router as studio_router
 from .config import MAX_UPLOAD, ROOT, RUNTIME
 
@@ -68,10 +74,14 @@ async def lifespan(app):
                 if previous.get("target_auth_required"):
                     raise ValueError("Re-enter the target API credential to resume.")
                 cfg = prepare(
-                    Settings.model_validate(previous["config"]), previous.get("protocol_snapshot")
+                    Settings.model_validate(previous["config"]),
+                    previous.get("protocol_snapshot"),
                 )
                 if any(not j.local and not j.token for j in cfg.judges):
-                    from .blackbox.judge_recovery import local_fallbacks, mark_unavailable
+                    from .blackbox.judge_recovery import (
+                        local_fallbacks,
+                        mark_unavailable,
+                    )
 
                     if not await local_fallbacks(cfg):
                         raise ValueError(
@@ -114,6 +124,7 @@ async def lifespan(app):
         task.cancel()
     if TASKS:
         await asyncio.gather(*list(TASKS), return_exceptions=True)
+    db.close()
 
 
 MAX_ACTIVE_RUNS = max(1, min(8, int(os.getenv("STUDIO_MAX_ACTIVE_RUNS", "3"))))
@@ -166,7 +177,10 @@ def exact_case_set():
                 "price_inr": 129999,
                 "warranty_months": 24,
             },
-            "checks": {"required": ["TEST-P001", "129999", "24 months"], "forbidden": ["lifetime"]},
+            "checks": {
+                "required": ["TEST-P001", "129999", "24 months"],
+                "forbidden": ["lifetime"],
+            },
         },
     ]
 
@@ -382,7 +396,8 @@ def preview_run(config: Settings):
 async def start(config: Settings):
     if not config.ownership_confirmed:
         raise HTTPException(
-            422, "Confirm ownership or written permission before starting any evaluation."
+            422,
+            "Confirm ownership or written permission before starting any evaluation.",
         )
     capacity()
     for target in config.targets:
@@ -434,7 +449,8 @@ async def resume_run(ident: uuid.UUID, config: Settings):
     config.min_coverage = run["config"].get("min_coverage", 0.8)
     if not config.price_snapshot_id:
         raise HTTPException(
-            422, "This run predates cost tracking. Start a new run to meter all calls consistently."
+            422,
+            "This run predates cost tracking. Start a new run to meter all calls consistently.",
         )
     for key in (
         "categories",
@@ -458,7 +474,8 @@ async def resume_run(ident: uuid.UUID, config: Settings):
             else getattr(config, key),
         ):
             raise HTTPException(
-                422, "Resume must use the same cases, policy and judge as the original run."
+                422,
+                "Resume must use the same cases, policy and judge as the original run.",
             )
         if [c.model_dump() for c in config.custom_cases] != [
             ImportedCase.model_validate(c).model_dump()
@@ -533,7 +550,8 @@ async def resume_run(ident: uuid.UUID, config: Settings):
         finished_at=None,
     )
     run["progress"] = round(
-        100 * sum(c.get("completed", False) for c in run["cases"]) / len(run["cases"]), 1
+        100 * sum(c.get("completed", False) for c in run["cases"]) / len(run["cases"]),
+        1,
     )
     run["config"]["request_pause_seconds"] = config.request_pause_seconds
     run["config"]["max_minutes"] = config.max_minutes
@@ -605,7 +623,9 @@ def download(ident: uuid.UUID, format: str = "json"):
         if run["status"] in ("queued", "running"):
             raise HTTPException(409, "Wait for the run to finish before creating the PDF.")
         return FileResponse(
-            generate_pdf(run), filename=f"blackbox-{ident}.pdf", media_type="application/pdf"
+            generate_pdf(run),
+            filename=f"blackbox-{ident}.pdf",
+            media_type="application/pdf",
         )
     raise HTTPException(422, "Choose json or pdf.")
 
@@ -733,4 +753,8 @@ def simple_screen():
     return FileResponse(ROOT / "app/blackbox_static/simple.html")
 
 
-app.mount("/", StaticFiles(directory=ROOT / "app" / "blackbox_static", html=True), name="frontend")
+app.mount(
+    "/",
+    StaticFiles(directory=ROOT / "app" / "blackbox_static", html=True),
+    name="frontend",
+)

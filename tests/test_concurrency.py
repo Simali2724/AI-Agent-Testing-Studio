@@ -30,22 +30,32 @@ def config(**kw):
 
 
 def reply():
-    return {"transcript": [{"input": "hello", "output": "safe", "seconds": 0.03}], "error": None}
+    return {
+        "transcript": [{"input": "hello", "output": "safe", "seconds": 0.03}],
+        "error": None,
+    }
 
 
 def test_target_limits_across_simultaneous_runs():
     active = 0
     peak = 0
+    wider_run_closed = None
 
     class Bot:
-        def __init__(self, *a):
-            pass
+        def __init__(self, target, *a):
+            self.restrictive = target.name == "Restrictive run"
 
         async def detect(self):
             pass
 
         async def close(self):
-            pass
+            # Hold the stricter lease until all overlapping traffic finishes.
+            # Otherwise its legitimate release allows the wider run to use four
+            # slots, making a lifetime peak assertion depend on OS scheduling.
+            if self.restrictive:
+                await wider_run_closed.wait()
+            else:
+                wider_run_closed.set()
 
         async def conversation(self, c):
             nonlocal active, peak
@@ -58,16 +68,59 @@ def test_target_limits_across_simultaneous_runs():
                 active -= 1
 
     async def go():
+        nonlocal wider_run_closed
+        wider_run_closed = asyncio.Event()
         a = config(target_concurrency=2)
+        a.targets[0].name = "Restrictive run"
         b = config(target_concurrency=4)
         results = await asyncio.gather(
-            runner.execute(runner.make_run(a), a, Bot), runner.execute(runner.make_run(b), b, Bot)
+            runner.execute(runner.make_run(a), a, Bot),
+            runner.execute(runner.make_run(b), b, Bot),
         )
         assert all(r["status"] == "completed" for r in results)
         assert all(r["summary"][0]["tested"] == 8 for r in results)
 
     asyncio.run(go())
     assert peak == 2 and active == 0
+
+
+def test_finished_run_releases_its_stricter_target_limit():
+    async def go():
+        strict = scheduling.Runtime(config(target_concurrency=2), asyncio.Event())
+        wider = scheduling.Runtime(config(target_concurrency=4), asyncio.Event())
+        release = asyncio.Event()
+        two_active = asyncio.Event()
+        four_active = asyncio.Event()
+        active = 0
+
+        async def call():
+            nonlocal active
+            async with wider.target(wider.config.targets[0].url):
+                active += 1
+                if active == 2:
+                    two_active.set()
+                if active == 4:
+                    four_active.set()
+                try:
+                    await release.wait()
+                finally:
+                    active -= 1
+
+        tasks = [asyncio.create_task(call()) for _ in range(4)]
+        try:
+            await asyncio.wait_for(two_active.wait(), 5)
+            assert active == 2
+            await strict.close()
+            await asyncio.wait_for(four_active.wait(), 5)
+            assert active == 4
+        finally:
+            release.set()
+            await asyncio.gather(*tasks)
+            await strict.close()
+            await wider.close()
+        assert active == 0
+
+    asyncio.run(go())
 
 
 def test_judge_limit_pacing_and_retry_are_shared(monkeypatch):
@@ -324,5 +377,6 @@ def test_rate_limit_retry_after_and_connection_cleanup():
     assert gate.next_start >= now + 11.9
     with database.connect() as connection:
         connection.execute("SELECT 1")
+    database.close()
     with pytest.raises(sqlite3.ProgrammingError):
         connection.execute("SELECT 1")
