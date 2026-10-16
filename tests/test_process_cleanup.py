@@ -1,5 +1,6 @@
 """Fixture shutdown must release files and sockets owned by descendants."""
 
+import errno
 import json
 import os
 import socket
@@ -57,10 +58,28 @@ child.wait()
         assert process.poll() is not None
         # POSIX permits renaming open files; the socket check also proves that
         # the descendant is gone on those platforms. Windows checks both locks.
-        with socket.socket() as listener:
-            listener.bind(("127.0.0.1", port))
+        # A parent wait() does not reap grandchildren. The OS can finish
+        # releasing their handles just after the parent's exit notification.
+        # A permanently orphaned server still fails this bounded assertion.
+        release_deadline = time.monotonic() + 5
+        while True:
+            try:
+                with socket.socket() as listener:
+                    listener.bind(("127.0.0.1", port))
+                break
+            except OSError as error:
+                if error.errno != errno.EADDRINUSE or time.monotonic() >= release_deadline:
+                    raise
+                time.sleep(0.01)
         moved = database.with_name("released.db")
-        database.rename(moved)
+        while True:
+            try:
+                database.rename(moved)
+                break
+            except PermissionError:
+                if time.monotonic() >= release_deadline:
+                    raise
+                time.sleep(0.01)
         moved.unlink()
         stop_process_tree(process)  # Repeated cleanup is safe.
     finally:

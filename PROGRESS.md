@@ -333,3 +333,7 @@ Deleted files:
 
 - Full local regression suite: 258 passed, one existing Windows symlink-permission skip, 176.80 seconds. Eight provider/credential tests cover independent accounts, explicit overrides, legacy opt-in, hostile endpoint variants, several judges with arbitrary targets and model discovery. No provider requests were made by these tests.
 - Ruff format/lint passed (88 Python files), 24-file JavaScript syntax passed, nine navigation tests passed, and the full Prettier check passed. Fresh-process checks confirm the saved Gemini key/model come from Studio's own .env, no external bot env is required, and public defaults do not expose the key.
+
+Native Linux follow-up: run 38849599247 exposed a pre-existing immediate socket-rebind race in tests/test_process_cleanup.py; judge credential tests passed. Parent wait() can return slightly before a descendant's kernel handles are released. The regression now waits at most five seconds for socket/file release, retrying only EADDRINUSE or PermissionError; a persistent orphan still fails. No check is skipped and the speed benchmark threshold is unchanged. Verify on both Windows and native Linux before repushing.
+
+Cleanup follow-up verification: nine focused Windows tests passed (process release plus all credential tests). The process-release regression then passed 20 consecutive native Linux runs in existing Ubuntu WSL, using only Python standard-library fixture processes. No bot/provider request or performance-threshold change was introduced.
