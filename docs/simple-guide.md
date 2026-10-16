@@ -10,7 +10,7 @@ macOS/Linux: install Python 3.12+, then run `./start.sh`. If the downloaded file
 
 Open **http://127.0.0.1:2708/**. Your chatbot must already be running. Paste its chat page or complete API URL. If automatic detection fails, open Connection help and specify message/response fields or browser selectors. The Studio cannot connect to every proprietary interface automatically.
 
-Choose one or more judges. Enter a model your account supports and its key in the password box. Keys are never saved in browser storage or reports. A saved backend judge can reuse local environment configuration. Claude uses LiteLLM's Anthropic transport; the API connection must be checked with your account before a benchmark.
+Choose one or more judges. Enter a model your account supports and its key in the password box. Keys are never saved in browser storage or reports. Save independent provider keys in Studio's own .env (see [API setup](api-keys.md)); each selected judge reuses only its matching provider key. No chatbot credentials file is required. Claude uses LiteLLM's Anthropic transport; the API connection must be checked with your account before a benchmark.
 
 For local judging: install Ollama, run `ollama serve`, and install a suitable model yourself (`ollama pull <model>`). Reload Studio; installed model names are listed. Tick a local model and **Use as automatic local fallback only**. Studio never downloads models automatically. Local compute time is not free electricity or hardware; its API token charge can be zero.
 

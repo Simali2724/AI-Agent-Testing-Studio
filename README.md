@@ -47,7 +47,7 @@ ZIPs imported through White are scanned as source inside a restricted, networkle
 
 Read [the detailed simple guide](docs/simple-guide.md) for configuration, recovery and optional Docker. [Previous documentation](docs/legacy-guide.md) and the older interface at `/index.html` remain available for historical runs.
 
-Need to change a key? [API keys and testing-file locations](docs/api-keys.md) explains the Studio judge, chatbot authentication and the separate Reliance backend settings.
+Need to change a key? [API keys and testing-file locations](docs/api-keys.md) explains independent Studio judge accounts and chatbot authentication. Studio does not need another chatbot's .env.
 
 [PROGRESS.md](PROGRESS.md) records changes and verification. [HANDOFF.md](HANDOFF.md) describes remaining work.
 

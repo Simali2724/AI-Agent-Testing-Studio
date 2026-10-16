@@ -6,19 +6,31 @@ The Studio judge and the chatbot being tested have separate keys. Changing the j
 
 Open Studio, select **Evaluate**, then **Choose your judge**. Open **Model and key**, enter the provider's model ID and API key, and select that judge. For a running evaluation, use **Apply judges to active run**. Keys entered here apply to that run; they are not written into the project `.env` or copied into reports.
 
-## Save the Studio judge key locally
+## Save judge accounts in Studio's own .env
 
-Edit `.env` in the Studio project root. On this PC it is `D:\AI-Agent-Testing-Studio\.env`.
+Edit `.env` in the Studio project root. On this PC it is `D:\AI-Agent-Testing-Studio\.env`. No chatbot folder or external credentials file is required.
 
-| Setting                | Meaning                                       |
-| ---------------------- | --------------------------------------------- |
-| `STUDIO_JUDGE_API_KEY` | The selected judge provider's API key         |
-| `STUDIO_JUDGE_MODEL`   | A model ID available to your provider account |
-| `STUDIO_JUDGE_URL`     | The endpoint for that same judge provider     |
+Set `STUDIO_JUDGE_PROVIDER` to your default judge provider:
 
-Keep the provider, model and endpoint consistent. Use the on-screen provider choices if you are unsure of an endpoint. Restart the Studio backend after editing `.env`, when no evaluation is active. Explicit on-screen judge selections override saved defaults. An environment variable already set in the launching terminal also takes precedence over `.env`; update or remove that old value if the change does not appear.
+| Provider value | Key setting         | Model setting     |
+| -------------- | ------------------- | ----------------- |
+| `openai`       | `OPENAI_API_KEY`    | `OPENAI_MODEL`    |
+| `claude`       | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` |
+| `gemini`       | `GEMINI_API_KEY`    | `GEMINI_MODEL`    |
+| `gemma`        | `GEMINI_API_KEY`    | `GEMMA_MODEL`     |
+| `ollama`       | No cloud API key    | `OLLAMA_MODEL`    |
 
-An optional `STUDIO_JUDGE_ENV_FILE` can point to a separate local credentials file. `STUDIO_JUDGE_KEY_NAME` chooses its key variable (default `GOOGLE_API_KEY`). A nonempty `STUDIO_JUDGE_API_KEY` takes priority. Most users can use the main `.env` and leave this advanced option unused.
+For example, select `STUDIO_JUDGE_PROVIDER=gemini`, enter your key in `GEMINI_API_KEY`, and set `GEMINI_MODEL` to a model available to your account. The provider's endpoint is selected automatically. You can use that judge to evaluate any connected chatbot; the target bot and judge do not need to share a provider.
+
+You may configure several provider keys in this same file. When you choose judges on screen, Studio uses each matching provider's saved key. Entering a key in the UI overrides the saved key for that judge. Use **Show available models** to list models from that saved account. Password fields and API responses never reveal saved key values.
+
+Restart the Studio backend after editing `.env`, when no evaluation is active. An environment variable already set in the launching terminal takes precedence over `.env`; update or remove an old terminal value if the change does not appear.
+
+### Custom or advanced judge settings
+
+Leave `STUDIO_JUDGE_URL`, `STUDIO_JUDGE_MODEL`, and `STUDIO_JUDGE_API_KEY` empty for normal provider selection. These values override the default provider when filled. For another compatible service, set `STUDIO_JUDGE_PROVIDER=custom` and supply its endpoint, model and key. A known provider's saved key is reused only for its configured endpoint; it is never automatically sent to an arbitrary bot or custom host.
+
+Provider endpoints, model-variable names and credential-variable names live in `app/studio/settings.json`. Advanced installations may still explicitly opt into `STUDIO_JUDGE_ENV_FILE` and `STUDIO_JUDGE_KEY_NAME` for a separate credentials file. They are unused by default; a Studio-owned provider key takes priority. No target-bot path belongs in the standard setup.
 
 ## Change the Reliance chatbot's provider key
 

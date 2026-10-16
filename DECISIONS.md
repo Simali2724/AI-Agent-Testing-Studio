@@ -259,3 +259,7 @@ Treat the synthetic UI server as a process tree. A Windows venv launcher may lea
 ## 2026-10-16 — Manual CI entry point
 
 Expose workflow_dispatch with no inputs so nontechnical users can run the current master branch through GitHub's Run workflow button. Re-running historical jobs intentionally retains their original commit; the README explains this and provides a branch status badge. Assert sys.prefix differs from sys.base_prefix before installation to catch accidental use of a hosted runner's global Python. Preserve dependency checks and historical evidence.
+
+## 2026-10-16 — Keep judge accounts independent of target bots
+
+Store ordinary judge credentials in Studio's own ignored .env. Resolve them by the configured judge endpoint, never by the chatbot target. Provider names, endpoints and environment variable names are editable in app/studio/settings.json. User-entered UI keys override saved credentials; an explicit generic key applies only to its saved endpoint. Match scheme/authority/path, rejecting user-info, query and fragment variants before any automatic provider-key reuse. Keep external credentials files only as explicit backward-compatible opt-in. Migrated this machine's former Reliance-derived judge key into Studio without altering the target bot file or publishing keys.

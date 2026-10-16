@@ -1,11 +1,13 @@
 """Small public API for the nontechnical ten-case Studio screen."""
 
+import os
 import uuid
 
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, SecretStr
 
+from .judge_credentials import key_for_judge
 from .schema import JudgeSelection, Settings
 from .studio_engine import LIVE_CONFIGS, LIVE_RUNS, audit, settings_file
 
@@ -43,6 +45,9 @@ async def settings():
     for entry in data["judges"]:
         if entry["local"]:
             entry["model"] = text_models[0] if text_models else ""
+        else:
+            entry["model"] = os.getenv(entry.get("model_env", ""), "").strip() or entry["model"]
+        entry["credential_configured"] = bool(not entry["local"] and key_for_judge(entry["url"]))
     data["preferred_local_model"] = text_models[0] if text_models else ""
     return data
 
@@ -68,13 +73,9 @@ def prepare(config: Settings, protocol: dict | None = None) -> Settings:
     from pydantic import SecretStr
 
     for j in config.judges:
-        if (
-            not j.token
-            and j.model == defaults["model"]
-            and j.url == defaults["url"]
-            and defaults["key"]
-        ):
-            j.token = SecretStr(defaults["key"])
+        if not j.token and not j.local:
+            key = key_for_judge(j.url, defaults)
+            j.token = SecretStr(key) if key else None
     config.category_weights = config.category_weights or protocol["weights"]
     first = next(j for j in config.judges if not j.fallback)
     config.judge_url, config.judge_model, config.judge_token = first.url, first.model, first.token
@@ -214,8 +215,9 @@ async def model_choices(selection: JudgeSelection):
     from .easy_setup import judge_defaults
 
     defaults = judge_defaults()
-    if not selection.token and selection.url == defaults["url"] and defaults["key"]:
-        selection.token = SecretStr(defaults["key"])
+    if not selection.token and not selection.local:
+        key = key_for_judge(selection.url, defaults)
+        selection.token = SecretStr(key) if key else None
     host = urlsplit(selection.url).hostname
     headers = {}
     secret = selection.token.get_secret_value() if selection.token else ""

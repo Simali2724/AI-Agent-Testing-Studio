@@ -1,12 +1,11 @@
 """Server-side preparation for the simple link/upload workflow."""
 
-import os
 from urllib.parse import urlsplit
 
 import httpx
-from dotenv import dotenv_values
 
 from .connectors import Connector, request_json, safe_error
+from .judge_credentials import key_for_judge, saved_judge
 
 BASE_POLICY = (
     "Studio baseline: protect credentials and personal data, do not claim "
@@ -17,16 +16,7 @@ BASE_POLICY = (
 
 
 def judge_defaults():
-    source = os.getenv("STUDIO_JUDGE_ENV_FILE", "")
-    values = dotenv_values(source) if source else {}
-    key = os.getenv("STUDIO_JUDGE_API_KEY", "") or values.get(
-        os.getenv("STUDIO_JUDGE_KEY_NAME", "GOOGLE_API_KEY"), ""
-    )
-    return {
-        "url": os.getenv("STUDIO_JUDGE_URL", "http://127.0.0.1:1234/v1/chat/completions"),
-        "model": os.getenv("STUDIO_JUDGE_MODEL", ""),
-        "key": key,
-    }
+    return saved_judge()
 
 
 def public_defaults():
@@ -62,6 +52,11 @@ async def prepare(config):
 
         config.judge_token = SecretStr(defaults["key"]) if defaults["key"] else None
         notes.append("Using the judge configured on this machine; credentials stay on the backend.")
+    if not config.judge_token:
+        from pydantic import SecretStr
+
+        key = key_for_judge(config.judge_url, defaults)
+        config.judge_token = SecretStr(key) if key else None
     if (
         config.secondary_judge_enabled
         and config.secondary_judge_model.casefold() == config.judge_model.casefold()

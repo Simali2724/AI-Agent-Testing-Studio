@@ -321,3 +321,15 @@ Deleted files:
 - Added workflow_dispatch so users can choose Run workflow, select master, and test the current code. Added an explicit virtual-environment assertion before dependency installation; pip check remains mandatory.
 - Added a README status badge and instructions distinguishing a new branch run from replaying an old job. Included the already prepared API-key guide so the README's configuration-help link resolves in the repository.
 - Validate YAML/events, PowerShell syntax and formatting, then verify the new remote matrix. No historical run is deleted or relabeled.
+
+## 2026-10-16 — Standalone judge provider configuration
+
+- Removed this machine's STUDIO_JUDGE_ENV_FILE dependency on Reliance. Preserved the existing judge credential in Studio's ignored .env without printing it or changing the chatbot's own file. Changing the target bot no longer involves its configuration for judge credentials.
+- Added config-driven provider/model/key environment bindings in app/studio/settings.json and a provider-scoped resolver in app/blackbox/judge_credentials.py. Default provider selection uses STUDIO_JUDGE_PROVIDER; OpenAI, Claude, Gemini, hosted Gemma and Ollama use their own model variables. Explicit custom overrides remain supported.
+- Simple setup, model discovery, multi-judge selection and live judge changes reuse the corresponding Studio provider key. Explicit UI keys take priority. Built-in provider credentials are not forwarded to arbitrary endpoints; public settings expose only whether a key is configured.
+- Updated .env.example, README and API/setup guides. An explicitly configured external credentials file remains a legacy opt-in; there is no default target-bot path. Thirty initial credential/setup/API tests passed without external provider requests. Final regression/format results follow.
+
+### Standalone judge verification
+
+- Full local regression suite: 258 passed, one existing Windows symlink-permission skip, 176.80 seconds. Eight provider/credential tests cover independent accounts, explicit overrides, legacy opt-in, hostile endpoint variants, several judges with arbitrary targets and model discovery. No provider requests were made by these tests.
+- Ruff format/lint passed (88 Python files), 24-file JavaScript syntax passed, nine navigation tests passed, and the full Prettier check passed. Fresh-process checks confirm the saved Gemini key/model come from Studio's own .env, no external bot env is required, and public defaults do not expose the key.

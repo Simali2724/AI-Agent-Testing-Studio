@@ -19,31 +19,49 @@
       "label": "OpenAI",
       "model": "",
       "url": "https://api.openai.com/v1/chat/completions",
-      "local": false
+      "local": false,
+      "provider": "openai",
+      "key_env": "OPENAI_API_KEY",
+      "model_env": "OPENAI_MODEL"
     },
     {
       "label": "Claude",
       "model": "",
       "url": "https://api.anthropic.com/v1/chat/completions",
-      "local": false
+      "local": false,
+      "provider": "claude",
+      "key_env": "ANTHROPIC_API_KEY",
+      "model_env": "ANTHROPIC_MODEL",
+      "provider_aliases": ["anthropic"]
     },
     {
       "label": "Gemini",
       "model": "",
       "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      "local": false
+      "local": false,
+      "provider": "gemini",
+      "key_env": "GEMINI_API_KEY",
+      "model_env": "GEMINI_MODEL",
+      "key_env_aliases": ["GOOGLE_API_KEY"]
     },
     {
       "label": "Gemma (Google API)",
       "model": "",
       "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      "local": false
+      "local": false,
+      "provider": "gemma",
+      "key_env": "GEMINI_API_KEY",
+      "model_env": "GEMMA_MODEL",
+      "key_env_aliases": ["GOOGLE_API_KEY"]
     },
     {
       "label": "Ollama / local Gemma",
       "model": "",
       "url": "http://127.0.0.1:11434/v1/chat/completions",
-      "local": true
+      "local": true,
+      "provider": "ollama",
+      "key_env": "",
+      "model_env": "OLLAMA_MODEL"
     }
   ],
   "cases": [
