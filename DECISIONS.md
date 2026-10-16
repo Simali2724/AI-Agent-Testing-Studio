@@ -255,3 +255,7 @@ Use a fresh virtual environment on every matrix platform. The Windows hosted run
 ## 2026-10-16 — Owned subprocess cleanup in UI verification
 
 Treat the synthetic UI server as a process tree. A Windows venv launcher may leave the actual Python server alive when only the launcher is terminated; the orphan holds the temporary SQLite database. Shut down the exact owned PID tree with taskkill /T /F on Windows and a dedicated process session/group on POSIX. Keep this utility in scripts/process_cleanup.py, outside production evaluation logic. A real descendant-file/socket regression verifies resource release without paid provider calls or relaxed cleanup assertions.
+
+## 2026-10-16 — Manual CI entry point
+
+Expose workflow_dispatch with no inputs so nontechnical users can run the current master branch through GitHub's Run workflow button. Re-running historical jobs intentionally retains their original commit; the README explains this and provides a branch status badge. Assert sys.prefix differs from sys.base_prefix before installation to catch accidental use of a hosted runner's global Python. Preserve dependency checks and historical evidence.

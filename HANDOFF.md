@@ -106,3 +106,9 @@ The user still sees the historical pipx/filelock error. Remote master is b5888be
 Current patch: scripts/process_cleanup.py (owned subprocess-tree termination), scripts/check-exact-compare.py (dedicated POSIX session and utility call before temporary cleanup), tests/test_process_cleanup.py (real descendant holding SQLite and a socket). Seven focused database/process tests passed. Three consecutive local comparison repetitions passed, including temporary cleanup and zero provider calls. Keep the independent matrix, isolated venv and existing performance threshold unchanged. Ruff format/lint and the full Prettier check passed. Next: scoped commit/push and watch the new remote matrix to completion.
 
 Pre-existing local README.md and docs/api-keys.md are from the user's cleanup/API-help request; preserve them. PROGRESS.md includes that previously completed cache cleanup (103 generated files, 2,835,072 bytes). Do not remove source, saved runs or credentials. No historical chatbot benchmarks should be resumed.
+
+## Latest checkpoint — historical job replay identified
+
+The new user attachment explicitly shows run #3, titled Fix cross-platform CI and durable SQLite performance. GitHub confirms run 38770550500 attempt 2 uses old SHA 663d90d, so replaying it still triggers the old global pipx/filelock conflict. Latest master ea40d8d and run 38846319031 (#5) passed Windows, Ubuntu and macOS, including owned-process cleanup. Do not rerun #3 to verify a later fix.
+
+Current workflow/doc update adds workflow_dispatch, an isolated-Python assertion before dependency installation, and a README CI status badge plus Run workflow → master instructions. README's previously local docs/api-keys.md link and that guide are included together. Verify YAML and formatting, push, then confirm the new remote matrix. Future users should start a new workflow on master instead of using Re-run jobs in an old record. Preserve historical logs, local .env and saved evaluations.

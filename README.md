@@ -1,8 +1,16 @@
 # AI Agent Studio
 
+[![Code quality and regression tests](https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/workflows/quality.yml/badge.svg?branch=master)](https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/workflows/quality.yml?query=branch%3Amaster)
+
 Test one chatbot or compare up to four using the same **10 categories**. Each category runs **3 repeats** by default; change the repeat number on screen.
 
 Choose **Black** for chat behavior, optionally **Gray** for declarations/knowledge/traces, and **White** for read-only source scans. Any combination is supported. Confirm ownership or written permission before testing. [Read the short assurance guide](docs/assurance-guide.md) for inputs, evidence labels, privacy and optional scanner setup.
+
+## Check the latest code on GitHub
+
+Open **Actions → Code quality and regression tests → Run workflow**, select **master**, then click **Run workflow**. This starts checks for the current code. Use the status badge above to find recent runs.
+
+**Re-run jobs** inside an older failed run tests that run's original commit and workflow again. It does not pick up later fixes. For example, historical run #3 uses `663d90d`; the dependency-isolation fix was added afterward. Old failed records keep their original result.
 
 ## Start
 
@@ -38,6 +46,8 @@ Unknown usage/prices show **Unknown**, not $0. Hidden bot calls require that bot
 ZIPs imported through White are scanned as source inside a restricted, networkless Docker sandbox. They are never executed. Start trusted bots yourself and paste their running link for behavioral checks. Missing tools or inputs are recorded as **Not tested**. Docker is optional for normal Black/Gray use.
 
 Read [the detailed simple guide](docs/simple-guide.md) for configuration, recovery and optional Docker. [Previous documentation](docs/legacy-guide.md) and the older interface at `/index.html` remain available for historical runs.
+
+Need to change a key? [API keys and testing-file locations](docs/api-keys.md) explains the Studio judge, chatbot authentication and the separate Reliance backend settings.
 
 [PROGRESS.md](PROGRESS.md) records changes and verification. [HANDOFF.md](HANDOFF.md) describes remaining work.
 

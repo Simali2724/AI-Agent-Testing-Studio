@@ -3,6 +3,7 @@ name: Code quality and regression tests
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,6 +40,10 @@ jobs:
           $binDirectory = if ($IsWindows) { "Scripts" } else { "bin" }
           $venvBin = Join-Path (Join-Path $PWD ".venv") $binDirectory
           $venvBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Verify isolated Python environment
+        run: |
+          python -c "import sys; assert sys.prefix != sys.base_prefix, 'CI must use its isolated virtual environment'; print(sys.executable)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install development dependencies
         run: |
           python -m pip install -r requirements-dev.txt

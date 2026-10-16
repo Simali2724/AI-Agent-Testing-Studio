@@ -314,3 +314,10 @@ Deleted files:
 - A fresh attempt of run 38771088235 confirmed the pipx/filelock dependency fix and regression suite still pass, but exposed an intermittent WinError 32 at the comparison smoke test's temporary SQLite cleanup. The older dependency error and this new cleanup failure have different causes.
 - The isolated server now shuts down its owned process tree. On Windows, terminate the virtual-environment launcher and its server descendants together using taskkill with the exact spawned PID; on POSIX, start a separate session and stop its process group. Wait for exit before releasing parent database handles and removing the workspace. Existing UI assertions remain enabled.
 - Added a real parent/child regression fixture: the descendant holds a SQLite file and a listening socket, and cleanup must release both. Cleanup is idempotent. Seven targeted database/process tests passed. The comparison smoke test passed three consecutive local runs, including temporary directory removal, with zero provider calls. Remote matrix results must be verified after pushing.
+
+## 2026-10-16 — Run checks against the latest branch
+
+- The user's pasted pipx/filelock log belongs to historical run #3, commit 663d90d, re-run as attempt 2 after newer fixes existed. Re-running old jobs executes their original workflow, so it still lacks the isolated environment. Remote master ea40d8d and run #5 passed all platforms.
+- Added workflow_dispatch so users can choose Run workflow, select master, and test the current code. Added an explicit virtual-environment assertion before dependency installation; pip check remains mandatory.
+- Added a README status badge and instructions distinguishing a new branch run from replaying an old job. Included the already prepared API-key guide so the README's configuration-help link resolves in the repository.
+- Validate YAML/events, PowerShell syntax and formatting, then verify the new remote matrix. No historical run is deleted or relabeled.
