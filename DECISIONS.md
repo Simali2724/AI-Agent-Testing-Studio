@@ -251,3 +251,7 @@ Concurrency limits apply to active run leases: the strictest overlapping lease g
 ### CI Python environment isolation
 
 Use a fresh virtual environment on every matrix platform. The Windows hosted runner contains unrelated pipx packages; global pip check reported their filelock conflict after installing Studio dependencies. Isolating project packages preserves dependency checking while making runner-preinstalled tools irrelevant. The same portable environment setup applies to Windows, Ubuntu and macOS.
+
+## 2026-10-16 — Owned subprocess cleanup in UI verification
+
+Treat the synthetic UI server as a process tree. A Windows venv launcher may leave the actual Python server alive when only the launcher is terminated; the orphan holds the temporary SQLite database. Shut down the exact owned PID tree with taskkill /T /F on Windows and a dedicated process session/group on POSIX. Keep this utility in scripts/process_cleanup.py, outside production evaluation logic. A real descendant-file/socket regression verifies resource release without paid provider calls or relaxed cleanup assertions.

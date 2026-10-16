@@ -98,3 +98,11 @@ D: briefly became unavailable; a temporary verification clone was created under 
 ### Remote verification update
 
 Commit 663d90d was pushed. GitHub run https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/runs/38770550500 passed all macOS and Ubuntu checks. Windows dependency installation failed because the runner's unrelated preinstalled pipx conflicts with filelock. The follow-up workflow creates an isolated .venv and places Scripts (Windows) or bin (POSIX) on GITHUB_PATH before installing dependencies. pip check remains mandatory. Verify the next run before claiming all platforms green.
+
+## Latest continuation checkpoint — 2026-10-16 Windows fixture cleanup
+
+The user still sees the historical pipx/filelock error. Remote master is b5888be. A fresh rerun (38771088235, attempt 2) passed dependency installation and the full regression suite, but Windows failed at the final comparison script: WinError 32 deleting studio.db. Ubuntu and macOS succeeded. This new intermittent issue is being fixed; do not describe attempt 2 as all green.
+
+Current patch: scripts/process_cleanup.py (owned subprocess-tree termination), scripts/check-exact-compare.py (dedicated POSIX session and utility call before temporary cleanup), tests/test_process_cleanup.py (real descendant holding SQLite and a socket). Seven focused database/process tests passed. Three consecutive local comparison repetitions passed, including temporary cleanup and zero provider calls. Keep the independent matrix, isolated venv and existing performance threshold unchanged. Ruff format/lint and the full Prettier check passed. Next: scoped commit/push and watch the new remote matrix to completion.
+
+Pre-existing local README.md and docs/api-keys.md are from the user's cleanup/API-help request; preserve them. PROGRESS.md includes that previously completed cache cleanup (103 generated files, 2,835,072 bytes). Do not remove source, saved runs or credentials. No historical chatbot benchmarks should be resumed.

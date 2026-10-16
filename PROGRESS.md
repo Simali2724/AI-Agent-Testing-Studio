@@ -196,3 +196,121 @@ User authorized the safest restart/resume so all cases continue. Run `1dbd9014-5
 
 - Run 38770550500, commit 663d90d: macOS and Ubuntu passed every check, including the full regression suite and comparison UI.
 - Windows failed before tests: the hosted runner's preinstalled pipx requires filelock>=4.0.9, conflicting with the project dependency version. Create a clean .venv and add its platform-specific executable directory to GITHUB_PATH before installation. Keep pip check enabled inside the isolated environment; do not uninstall runner tools or weaken dependency validation.
+
+## 2026-10-15 — Local generated-file cleanup and API guide
+
+Removed 103 untracked generated/cache files (2835072 bytes), plus their cache folders and the empty verification directory. Source, tests, sample data, dependencies, local credentials, saved reports, audit history, scanner databases and recovery backups are preserved. No tracked file was deleted; git rm is not applicable to ignored caches.
+
+Added docs/api-keys.md explaining Studio judge keys, chatbot authentication and the separate Reliance backend .env. Current CI verification: b5888be, run 38771088235, Windows/Ubuntu/macOS all successful.
+
+Deleted files:
+
+- `.pytest_cache/.gitignore`
+- `.pytest_cache/CACHEDIR.TAG`
+- `.pytest_cache/README.md`
+- `.pytest_cache/v/cache/lastfailed`
+- `.pytest_cache/v/cache/nodeids`
+- `.ruff_cache/.gitignore`
+- `.ruff_cache/0.14.1/15167142090786329581`
+- `.ruff_cache/0.14.1/195581709312814720`
+- `.ruff_cache/0.14.1/3553882810115875040`
+- `.ruff_cache/0.14.1/4323519583363054123`
+- `.ruff_cache/0.14.1/7054680015494741488`
+- `.ruff_cache/CACHEDIR.TAG`
+- `app/__pycache__/__init__.cpython-312.pyc`
+- `app/__pycache__/blackbox_app.cpython-312.pyc`
+- `app/__pycache__/config.cpython-312.pyc`
+- `app/__pycache__/database.cpython-312.pyc`
+- `app/__pycache__/main.cpython-312.pyc`
+- `app/__pycache__/models.cpython-312.pyc`
+- `app/assurance/__pycache__/__init__.cpython-312.pyc`
+- `app/assurance/__pycache__/black.cpython-312.pyc`
+- `app/assurance/__pycache__/combine.cpython-312.pyc`
+- `app/assurance/__pycache__/gray.cpython-312.pyc`
+- `app/assurance/__pycache__/intake.cpython-312.pyc`
+- `app/assurance/__pycache__/models.cpython-312.pyc`
+- `app/assurance/__pycache__/privacy.cpython-312.pyc`
+- `app/assurance/__pycache__/routes.cpython-312.pyc`
+- `app/assurance/__pycache__/sandbox.cpython-312.pyc`
+- `app/assurance/__pycache__/service.cpython-312.pyc`
+- `app/assurance/__pycache__/white.cpython-312.pyc`
+- `app/blackbox/__pycache__/__init__.cpython-312.pyc`
+- `app/blackbox/__pycache__/baselines.cpython-312.pyc`
+- `app/blackbox/__pycache__/bias.cpython-312.pyc`
+- `app/blackbox/__pycache__/catalog.cpython-312.pyc`
+- `app/blackbox/__pycache__/classifier_runtime.cpython-312.pyc`
+- `app/blackbox/__pycache__/comparisons.cpython-312.pyc`
+- `app/blackbox/__pycache__/connectors.cpython-312.pyc`
+- `app/blackbox/__pycache__/cost_adapters.cpython-312.pyc`
+- `app/blackbox/__pycache__/cost_summary.cpython-312.pyc`
+- `app/blackbox/__pycache__/deterministic.cpython-312.pyc`
+- `app/blackbox/__pycache__/easy_setup.cpython-312.pyc`
+- `app/blackbox/__pycache__/evidence_ids.cpython-312.pyc`
+- `app/blackbox/__pycache__/evidence.cpython-312.pyc`
+- `app/blackbox/__pycache__/execution_cache.cpython-312.pyc`
+- `app/blackbox/__pycache__/gemma_native.cpython-312.pyc`
+- `app/blackbox/__pycache__/governance_routes.cpython-312.pyc`
+- `app/blackbox/__pycache__/governance.cpython-312.pyc`
+- `app/blackbox/__pycache__/judge_batch.cpython-312.pyc`
+- `app/blackbox/__pycache__/judge_prompts.cpython-312.pyc`
+- `app/blackbox/__pycache__/judge_recovery.cpython-312.pyc`
+- `app/blackbox/__pycache__/judge.cpython-312.pyc`
+- `app/blackbox/__pycache__/local_metrics.cpython-312.pyc`
+- `app/blackbox/__pycache__/metering.cpython-312.pyc`
+- `app/blackbox/__pycache__/pricing.cpython-312.pyc`
+- `app/blackbox/__pycache__/quota.cpython-312.pyc`
+- `app/blackbox/__pycache__/readiness.cpython-312.pyc`
+- `app/blackbox/__pycache__/reports.cpython-312.pyc`
+- `app/blackbox/__pycache__/runner.cpython-312.pyc`
+- `app/blackbox/__pycache__/scheduling.cpython-312.pyc`
+- `app/blackbox/__pycache__/schema.cpython-312.pyc`
+- `app/blackbox/__pycache__/studio_engine.cpython-312.pyc`
+- `app/blackbox/__pycache__/studio_routes.cpython-312.pyc`
+- `runtime/judge-detail.png`
+- `runtime/judge-readiness.png`
+- `runtime/readability-desktop.png`
+- `runtime/readability-mobile.png`
+- `runtime/scoring-summary.png`
+- `sample_project/__pycache__/chatbot.cpython-312.pyc`
+- `sample-chatbot.zip`
+- `scripts/__pycache__/package_release.cpython-312.pyc`
+- `tests/__pycache__/conftest.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/legacy_protocol.cpython-312.pyc`
+- `tests/__pycache__/test_assurance_ui.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_assurance.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_bias_governance.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_blackbox_upgrade.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_comparison.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_concurrency.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_costs.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_coverage_scoring.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_curated_and_evidence.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_database.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_easy_setup.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_entrypoint.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_exact_multijudge_compare.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_expanded_scenarios.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_extended_categories.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_gemma.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_governance_recovery.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_http_turn_cache.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_judge_providers.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_judge_readiness.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_package_release.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_platform.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_provider_quota.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_recovery_controls.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_reference_free.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_remote_bots.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_scanner_runtime.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_scoring.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_simple_studio.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_speed_cache.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_studio_api.cpython-312-pytest-9.1.1.pyc`
+- `tests/__pycache__/test_zip_handler.cpython-312-pytest-9.1.1.pyc`
+
+## 2026-10-16 — Repair intermittent Windows comparison cleanup
+
+- A fresh attempt of run 38771088235 confirmed the pipx/filelock dependency fix and regression suite still pass, but exposed an intermittent WinError 32 at the comparison smoke test's temporary SQLite cleanup. The older dependency error and this new cleanup failure have different causes.
+- The isolated server now shuts down its owned process tree. On Windows, terminate the virtual-environment launcher and its server descendants together using taskkill with the exact spawned PID; on POSIX, start a separate session and stop its process group. Wait for exit before releasing parent database handles and removing the workspace. Existing UI assertions remain enabled.
+- Added a real parent/child regression fixture: the descendant holds a SQLite file and a listening socket, and cleanup must release both. Cleanup is idempotent. Seven targeted database/process tests passed. The comparison smoke test passed three consecutive local runs, including temporary directory removal, with zero provider calls. Remote matrix results must be verified after pushing.

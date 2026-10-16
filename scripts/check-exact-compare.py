@@ -20,6 +20,7 @@ with ExitStack() as cleanup:
     from app.blackbox import runner
     from app.blackbox.schema import Settings, Target
     from app.blackbox_app import exact_case_set
+    from scripts.process_cleanup import stop_process_tree
 
     cleanup.callback(database.close)
 
@@ -85,6 +86,7 @@ with ExitStack() as cleanup:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        start_new_session=os.name != "nt",
         cwd=Path(__file__).resolve().parents[1],
     )
     try:
@@ -207,5 +209,4 @@ with ExitStack() as cleanup:
             )
             browser.close()
     finally:
-        proc.terminate()
-        proc.wait(timeout=10)
+        stop_process_tree(proc)
