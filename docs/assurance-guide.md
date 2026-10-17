@@ -14,7 +14,7 @@ Combined links findings by **bot and category**, not proven causal dataflow. A d
 
 Basic/Standard/Full describe the selected evidence modes; they are not certifications. Missing evidence and low-confidence estimates prevent a launch-ready verdict. Critical and low-confidence findings enter the review queue. A false-positive decision needs a written reason and keeps the original finding and old/new verdict in the audit log.
 
-Every finding has four short parts and its evidence. The Hinglish switch changes headings and guidance while retaining the original judge reason and evidence language; it is **not a full AI translation**.
+Every finding has four short parts and its evidence. Interface headings and guidance are in English. Original judge explanations, prompts and evidence retain their original language.
 
 Unknown model/price/usage stays **Unknown**. A small positive amount displays **<$0.0001**; local calls display **$0 (local)** only when there is no compute charge. Historical uploaded telemetry is labeled separately and is not added again to benchmark bills.
 

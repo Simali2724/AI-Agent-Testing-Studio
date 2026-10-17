@@ -6,6 +6,10 @@ const esc = (value) =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
 let pollBusy = false;
+let pollController,
+  pollRequestId,
+  pollGeneration = 0;
+const resultCache = new Map();
 let hydrateRequested = !!new URLSearchParams(location.search).get("run");
 let settings,
   runId = new URLSearchParams(location.search).get("run"),
@@ -16,24 +20,30 @@ const tell = (message) => {
   $("notice").className = "notice";
   $("notice").textContent = message;
 };
-async function api(url, body, method = "POST") {
+async function api(url, body, method = "POST", options = {}) {
   const response = await fetch(
     url,
     body === undefined
-      ? {}
+      ? options
       : {
           method,
-          headers: { "Content-Type": "application/json", "X-Studio-Request": "1" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Studio-Request": "1",
+          },
           body: JSON.stringify(body),
+          ...options,
         },
   );
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(
+    const error = new Error(
       typeof data.detail === "string"
         ? data.detail
         : JSON.stringify(data.detail || response.status),
     );
+    error.status = response.status;
+    throw error;
   }
   return response.json();
 }
@@ -43,7 +53,7 @@ function addBot() {
   botCount++;
   $("bots").insertAdjacentHTML(
     "beforeend",
-    `<article class="bot" data-bot="${i}"><h3>Chatbot ${i + 1}</h3><div class="grid"><label>Name<input data-field="name" value="Chatbot ${i + 1}"></label><label>Chat page or full API link<input data-field="url" placeholder="https://your-bot.example/chat"></label></div><label>Or upload a ZIP<input data-field="zip" type="file" accept=".zip"></label><details><summary>Advanced connection settings</summary><div class="grid"><label>Type<select data-field="kind"><option value="auto">Detect automatically</option><option value="rest">REST API</option><option value="openai">OpenAI compatible</option><option value="web">Web chat widget</option></select></label><label>API key<input data-field="token" type="password" autocomplete="off"></label><label>Bot model / cost alias<input data-field="model"></label><label>Request message field<input data-field="message_field" value="message"></label><label>Response field<input data-field="response_field" placeholder="Detect common fields"></label><label>History field<input data-field="history_field"></label><label>Conversation ID field<input data-field="session_field" value="conversation_id"></label><label>Extra request JSON<textarea data-field="defaults">{}</textarea></label><label>Chat input selector<input data-field="input_selector"></label><label>Bot reply selector<input data-field="answer_selector"></label><label>Send button selector<input data-field="send_selector"></label></div></details><button class="remove-bot">Remove this bot</button></article>`,
+    `<article class="bot" data-bot="${i}"><h3>Chatbot ${i + 1}</h3><div class="grid"><label>Name<input data-field="name" value="Chatbot ${i + 1}"></label><label data-chat-only>Chat link or API endpoint<input data-field="url" placeholder="https://your-bot.example/chat"></label></div><details data-chat-only><summary>Connection settings (optional)</summary><div class="grid"><label>Type<select data-field="kind"><option value="auto">Detect automatically</option><option value="rest">REST API</option><option value="openai">OpenAI compatible</option><option value="web">Web chat widget</option></select></label><label>API key<input data-field="token" type="password" autocomplete="off"></label><label>Bot model / cost alias<input data-field="model"></label><label>Request message field<input data-field="message_field" value="message"></label><label>Response field<input data-field="response_field" placeholder="Detect common fields"></label><label>History field<input data-field="history_field"></label><label>Conversation ID field<input data-field="session_field" value="conversation_id"></label><label>Extra request JSON<textarea data-field="defaults">{}</textarea></label><label>Chat input selector<input data-field="input_selector"></label><label>Bot reply selector<input data-field="answer_selector"></label><label>Send button selector<input data-field="send_selector"></label></div></details><button type="button" class="remove-bot">Remove bot</button></article>`,
   );
   const card = $("bots").lastElementChild;
   card.querySelector(".remove-bot").onclick = () => {
@@ -51,37 +61,55 @@ function addBot() {
     botCount--;
     planned();
   };
-  card.querySelector("[data-field=zip]").onchange = async (e) => {
-    try {
-      const data = new FormData();
-      data.append("file", e.target.files[0]);
-      const r = await fetch("/api/blackbox/upload", {
-        method: "POST",
-        headers: { "X-Studio-Request": "1" },
-        body: data,
-      });
-      const result = await r.json();
-      if (!r.ok) throw new Error(result.detail);
-      card.dataset.archive = result.id || result.archive_id;
-      tell(
-        "ZIP stored. Start this trusted bot in your own environment and paste its running link; no isolated ZIP runner is configured.",
-      );
-    } catch (error) {
-      tell(error.message);
-    }
-  };
   planned();
 }
 function planned() {
   $("add-bot").disabled = botCount >= 4;
+  document.querySelectorAll(".remove-bot").forEach((button) => (button.hidden = botCount <= 1));
   if (!settings) return;
   const repeats = [...document.querySelectorAll("[data-repeat]")].reduce(
     (n, e) => n + Number(e.value) * (settings.scenario_sets?.[e.dataset.repeat]?.length || 1),
     0,
   );
   $("planned").textContent =
-    `${settings.cases.length} categories · ${repeats} outcome records per bot · ${botCount} ${botCount === 1 ? "bot" : "bots"}. Bias includes a derived disparity record; pairs and multi-turn tests use several messages.`;
+    `${settings.cases.length} categories · ${repeats} results per bot · ${botCount} ${botCount === 1 ? "bot" : "bots"}`;
+  const counts = [...document.querySelectorAll("[data-repeat]")].map((e) => e.value);
+  $("repeat-all").value = counts.every((n) => n === counts[0]) ? counts[0] || "" : "";
+  $("repeat-all").placeholder = "Custom";
+  syncSetup();
 }
+function syncSetup() {
+  const hasMode = (mode) => document.querySelector(`[data-mode="${mode}"]`).checked;
+  const chat = hasMode("black"),
+    source = hasMode("white"),
+    knowledge = hasMode("gray");
+  $("judge-section").hidden = !chat && !knowledge;
+  $("chat-test-options").hidden = !chat;
+  $("source-plan").hidden = chat;
+  $("source-plan").textContent = source
+    ? "Check uploaded files for security issues. Source scans do not test live chatbot answers."
+    : "Review your uploaded prompts, knowledge and logs. Missing evidence is clearly marked in the report.";
+  $("judge-consent-row").hidden = !chat && !knowledge;
+  $("private-settings").hidden = !source && !knowledge;
+  $("run-step").textContent = chat || knowledge ? "3" : "2";
+  $("mode-help").textContent =
+    [
+      chat ? "Black-box testing: use a working chat link or API endpoint." : "",
+      source ? "Source code: upload a ZIP below. Its code will not be executed." : "",
+      knowledge ? "Gray-box testing: add the files you want reviewed." : "",
+    ]
+      .filter(Boolean)
+      .join(" ") || "Select at least one test type.";
+  document.querySelectorAll("[data-chat-only]").forEach((e) => (e.hidden = !chat));
+  const selected = [...document.querySelectorAll(".judge")].filter(
+    (e) => e.querySelector("[data-enabled]").checked && !e.querySelector("[data-fallback]").checked,
+  );
+  $("judge-summary").textContent = selected.length
+    ? "Judge: " +
+      selected.map((e) => e.querySelector("[data-model]").value || e.dataset.label).join(", ")
+    : "Choose a judge below to score the answers.";
+}
+
 function judges() {
   return [...document.querySelectorAll(".judge")]
     .filter((e) => e.querySelector("[data-enabled]").checked)
@@ -418,20 +446,35 @@ Time: ${t.seconds ?? "Unknown"} seconds</div>`,
   $("bias-panel").hidden = !studio.bots.some((b) => b.bias_subtests?.length);
   renderGovernanceExtras(run);
   $("downloads").innerHTML =
-    `<a class="button" href="/api/blackbox/runs/${run.id}/download?format=pdf">Download PDF</a><a class="button" href="/api/blackbox/runs/${run.id}/download?format=json">Export JSON</a><a class="button" href="#governance" data-view="governance">Trust and audit →</a>`;
+    `<a class="button" href="/api/blackbox/runs/${run.id}/download?format=pdf">Download PDF</a><a class="button" href="/api/blackbox/runs/${run.id}/download?format=json">Export JSON</a><a class="button" href="#governance" data-view="governance">Governance →</a>`;
 }
 async function poll() {
-  if (!runId || pollBusy) return;
+  if (!runId || (pollBusy && pollRequestId === runId)) return;
+  pollController?.abort();
+  pollController = new AbortController();
+  const generation = ++pollGeneration;
   pollBusy = true;
   const requestedId = runId;
+  pollRequestId = requestedId;
   try {
-    const run = await api(`/api/blackbox/runs/${requestedId}`);
-    if (requestedId === runId) render(run);
+    const run = await api(`/api/blackbox/runs/${requestedId}`, undefined, "GET", {
+      signal: pollController.signal,
+    });
+    if (generation !== pollGeneration || requestedId !== runId) return;
+    resultCache.set(run.id, run);
+    if (resultCache.size > 10) resultCache.delete(resultCache.keys().next().value);
+    render(run);
   } catch (error) {
-    if (requestedId === runId) tell(error.message);
+    if (generation === pollGeneration && requestedId === runId && error.status === 404) {
+      resultCache.delete(requestedId);
+      window.StudioUI.selectRun(null, { replace: true });
+      tell("This test is no longer available. Choose another test or start a new one.");
+      return;
+    }
+    if (generation === pollGeneration && requestedId === runId && error.name !== "AbortError")
+      tell(error.message);
   } finally {
-    pollBusy = false;
-    if (runId && requestedId !== runId) setTimeout(poll, 0);
+    if (generation === pollGeneration) pollBusy = false;
   }
 }
 async function loadHistory() {
@@ -454,7 +497,7 @@ async function loadHistory() {
 async function boot() {
   settings = await api("/api/studio/settings");
   $("suite-intro").textContent =
-    `${settings.cases.length} categories are included. Each test repeats ${settings.default_repeats} times by default. Bias includes nine sub-tests. You can customize repeats below.`;
+    `${settings.cases.length} categories cover accuracy, safety, fairness and helpfulness.`;
   addBot();
   $("test-preview").innerHTML = settings.cases.map((c) => `<span>${esc(c.name)}</span>`).join("");
   $("checks").innerHTML = settings.cases
@@ -464,6 +507,15 @@ async function boot() {
     )
     .join("");
   document.querySelectorAll("[data-repeat]").forEach((e) => (e.oninput = planned));
+  $("repeat-all").onchange = () => {
+    if (!$("repeat-all").checkValidity() || !$("repeat-all").value) {
+      tell("Enter a whole number from 1 to 20 for repeats.");
+      planned();
+      return;
+    }
+    document.querySelectorAll("[data-repeat]").forEach((e) => (e.value = $("repeat-all").value));
+    planned();
+  };
   if (!runId) {
     ["stop", "apply-judges", "resume"].forEach((id) => ($(id).disabled = true));
     $("apply-judges").hidden = true;
@@ -473,23 +525,29 @@ async function boot() {
   if (saved.configured)
     list = [
       {
-        label: "Saved backend judge",
+        label:
+          list.find((j) => j.url === saved.endpoint && j.model === saved.model)?.label ||
+          "Saved judge",
+        credential_configured: true,
         model: saved.model,
         url: saved.endpoint,
         local: !saved.external,
       },
-      ...list,
+      ...list.filter((j) => j.url !== saved.endpoint || j.model !== saved.model),
     ];
   $("judges").innerHTML = list
     .map(
       (j, i) =>
-        `<article class="judge" data-url="${esc(j.url)}" data-local="${j.local}"><label><input data-enabled type="checkbox" ${(j.local && j.model) || (i === 0 && saved.configured && !settings.preferred_local_model) ? "checked" : ""}>${esc(j.label)}</label><span data-status class="pill">${j.credential_configured ? "Saved provider key; connection not checked" : "Not checked yet"}</span><details ${(j.local && j.model) || (i === 0 && saved.configured && !settings.preferred_local_model) ? "open" : ""}><summary>Model and key</summary><div class="grid"><label>Model ID<input data-model list="models-${i}" value="${esc(j.model)}" placeholder="Enter a model available to your account"></label><label>API key (leave empty for saved or local)<input data-key type="password" autocomplete="off"></label></div><label><input data-fallback type="checkbox" ${j.local ? "" : "disabled"}>Use as automatic local fallback only</label><button data-discover type="button">Show available models</button><datalist id="models-${i}">${j.local ? settings.ollama_models.map((m) => `<option value="${esc(m)}">`).join("") : ""}</datalist></details></article>`,
+        `<article class="judge" data-label="${esc(j.label)}" data-url="${esc(j.url)}" data-local="${j.local}"><label><input data-enabled type="checkbox" ${(j.local && j.model) || (i === 0 && saved.configured && !settings.preferred_local_model) ? "checked" : ""}>${esc(j.label)}</label><span data-status class="pill">${j.credential_configured ? "Saved key · connection not checked" : "Not checked yet"}</span><details><summary>Model and API key</summary><div class="grid"><label>Model ID<input data-model list="models-${i}" value="${esc(j.model)}" placeholder="Enter a model available to your account"></label><label>API key (leave empty for saved or local)<input data-key type="password" autocomplete="off"></label></div><label ${j.local ? "" : "hidden"}><input data-fallback type="checkbox">Use only as a backup judge</label><button data-discover type="button">Show available models</button><datalist id="models-${i}">${j.local ? settings.ollama_models.map((m) => `<option value="${esc(m)}">`).join("") : ""}</datalist></details></article>`,
     )
     .join("");
   document.querySelectorAll(".judge").forEach((e) => {
     e.querySelector("[data-enabled]").onchange = () => {
       e.querySelector("details").open = e.querySelector("[data-enabled]").checked;
+      syncSetup();
     };
+    e.querySelector("[data-model]").oninput = syncSetup;
+    e.querySelector("[data-fallback]").onchange = syncSetup;
     e.querySelector("[data-discover]").onclick = async () => {
       try {
         const result = await api("/api/studio/models", {
@@ -515,10 +573,12 @@ async function boot() {
     ? "Installed Ollama models: " + settings.ollama_models.join(", ")
     : "Ollama is unavailable or has no installed models. No automatic local fallback can run yet.";
   planned();
+  $("judge-options").open = !judges().some((j) => !j.fallback);
   await loadHistory();
   await poll();
   $("start").disabled = false;
 }
+document.querySelectorAll("[data-mode]").forEach((e) => e.addEventListener("change", syncSetup));
 $("add-bot").onclick = addBot;
 $("start").onclick = async () => {
   try {
@@ -626,8 +686,12 @@ window.addEventListener("studio:run-selected", async (event) => {
   $("stage").textContent = runId
     ? "Loading selected evaluation…"
     : "Choose a saved evaluation or start a new test.";
-  if (settings && !pollBusy) await poll();
+  if (settings && runId && resultCache.has(runId)) render(resultCache.get(runId));
+  if (settings) await poll();
 });
+window.addEventListener("studio:history-refresh", () =>
+  loadHistory().catch((error) => tell(error.message)),
+);
 window.addEventListener("studio:refresh", async () => {
   await poll();
   await loadHistory();
@@ -651,7 +715,7 @@ function renderGovernanceExtras(run) {
     .join("");
   const overrides = run.cases.flatMap((c) => c.results).filter((r) => r.human_review_note).length;
   $("integrity").innerHTML =
-    `<p class="integrity-note">${run.cases.filter((c) => c.completed).length}/${run.cases.length} records processed · ${overrides} overrides · Judge agreement: ${run.studio?.agreement_percent == null ? "Not measured" : run.studio.agreement_percent + "%"}. <a href="#governance" data-view="governance">View governance →</a></p>`;
+    `<p class="integrity-note">${run.cases.filter((c) => c.completed).length}/${run.cases.length} records processed · ${overrides} overrides · Judge agreement: ${run.studio?.agreement_percent == null ? "Not measured" : run.studio.agreement_percent + "%"}. <a href="#governance" data-view="governance">View trust &amp; history →</a></p>`;
   if (liveRun !== run.id) {
     liveEvents?.close();
     liveRun = run.id;

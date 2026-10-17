@@ -1,6 +1,13 @@
 # AI Agent Studio — simple guide
 
-Judge one bot, or compare up to four bots using the same ten categories (Bias expands into nine tagged sub-tests). Set repeats (default three), choose judge models, and read scores, transcripts, tokens and costs on one screen.
+Test one bot, or compare up to four bots. The English-only interface has three areas: **Evaluate**, **Results**, and **Governance**. Technical options stay closed until you need them.
+
+1. In **Evaluate**, select **Black-box testing**, **White-box testing**, or **Gray-box testing**. You can combine them. Chat tests need a running bot link; source checks need a ZIP or public repository. Source checks read code without running it.
+2. Add your bot. Use **Add another bot** for comparisons. For chat tests, keep the saved AI judge or open **Change model or API key**. Source-only checks do not need an AI judge.
+3. Set **Repeat each test** (default three), confirm permission and any required AI access, then select **Start test**. **View tests and customize repeats** lets you set different repeat counts. **Advanced settings** holds reference facts, safety rules and storage settings.
+4. In **Results**, choose a previous test or follow the current one. Open a check for its reason, evidence and next step. **Download report** exports a PDF; **More actions** contains data download, repeat and delete. **Governance** contains the audit and retention controls.
+
+Original bot answers and uploaded evidence keep their original language; interface labels and guidance use English. All ten chat categories remain available, including the nine Bias sub-tests. Simplifying the interface does not change scoring, remove tests or delete saved data.
 
 ## Start
 
@@ -8,13 +15,13 @@ Windows: open PowerShell in this folder and run `powershell -ExecutionPolicy Byp
 
 macOS/Linux: install Python 3.12+, then run `./start.sh`. If the downloaded file has no executable permission, run `chmod +x start.sh` once. It creates a virtual environment, installs dependencies and Chromium, checks for Ollama and opens the Studio. Internet is needed during installation. Native macOS/Linux startup has not been verified on this Windows host.
 
-Open **http://127.0.0.1:2708/**. Your chatbot must already be running. Paste its chat page or complete API URL. If automatic detection fails, open Connection help and specify message/response fields or browser selectors. The Studio cannot connect to every proprietary interface automatically.
+Open **http://127.0.0.1:2708/**. For chat-answer testing, your chatbot must already be running. Paste its chat page or complete API URL. If automatic detection fails, open **Connection settings (optional)** and specify message/response fields or browser selectors. The Studio cannot connect to every proprietary interface automatically.
 
 Choose one or more judges. Enter a model your account supports and its key in the password box. Keys are never saved in browser storage or reports. Save independent provider keys in Studio's own .env (see [API setup](api-keys.md)); each selected judge reuses only its matching provider key. No chatbot credentials file is required. Claude uses LiteLLM's Anthropic transport; the API connection must be checked with your account before a benchmark.
 
-For local judging: install Ollama, run `ollama serve`, and install a suitable model yourself (`ollama pull <model>`). Reload Studio; installed model names are listed. Tick a local model and **Use as automatic local fallback only**. Studio never downloads models automatically. Local compute time is not free electricity or hardware; its API token charge can be zero.
+For local judging: install Ollama, run `ollama serve`, and install a suitable model yourself (`ollama pull <model>`). Reload Studio; installed model names are listed. Tick a local model and **Use only as a backup judge** if it should be used only when another judge fails. Studio never downloads models automatically. Local compute time is not free electricity or hardware; its API token charge can be zero.
 
-Allow test messages and judge access, then click **Start evaluation**. During testing use **Change judges for active run** if your provider fails. Existing calls keep the previous judge; subsequent cases use your selection. After a stop or crash, **Resume missing cases** keeps prior scores, transcripts and cost events. Target API keys may need re-entry after restart; credentials are not stored in the database.
+Allow test messages and AI review, then click **Start test**. During testing, change your model/key under **Change model or API key**, then use **Update judges for this run**. Existing calls keep the previous judge; subsequent cases use your selection. After a stop or crash, **Resume test** keeps prior scores, transcripts and cost events. Target API keys may need re-entry after restart; credentials are not stored in the database.
 
 ## Understanding results
 

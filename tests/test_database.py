@@ -71,3 +71,25 @@ def test_shutdown_waits_for_active_transaction_to_finish(database):
         active.execute("SELECT 1")
     with db.connect() as reopened:
         assert reopened.execute("SELECT COUNT(*) FROM records").fetchone()[0] == 1
+
+
+def test_history_projection_preserves_types_without_loading_transcripts(database, monkeypatch):
+    db.save(
+        "run",
+        {
+            "id": "one",
+            "targets": [{"name": "Bot"}],
+            "progress": 0,
+            "transcript": "private evidence" * 10000,
+        },
+    )
+    db.save("other", {"id": "unrelated"})
+    db.save("run", {"id": "two", "targets": [], "progress": 100})
+    monkeypatch.setattr(db, "all_records", lambda *args: pytest.fail("Full history decode"))
+    summaries = db.record_summaries("run", ("id", "targets", "progress", "missing"))
+    assert summaries == [
+        {"id": "two", "targets": [], "progress": 100, "missing": None},
+        {"id": "one", "targets": [{"name": "Bot"}], "progress": 0, "missing": None},
+    ]
+    with pytest.raises(ValueError):
+        db.record_summaries("run", ("unsafe.path",))

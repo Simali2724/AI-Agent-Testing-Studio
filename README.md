@@ -4,7 +4,7 @@
 
 Test one chatbot or compare up to four using the same **10 categories**. Each category runs **3 repeats** by default; change the repeat number on screen.
 
-Choose **Black** for chat behavior, optionally **Gray** for declarations/knowledge/traces, and **White** for read-only source scans. Any combination is supported. Confirm ownership or written permission before testing. [Read the short assurance guide](docs/assurance-guide.md) for inputs, evidence labels, privacy and optional scanner setup.
+Choose **Black-box testing** for chat behavior, **Gray-box testing** for declarations, knowledge and traces, or **White-box testing** for read-only source scans. Any combination is supported. Confirm ownership or written permission before testing. [Read the short assurance guide](docs/assurance-guide.md) for inputs, evidence labels, privacy and optional scanner setup.
 
 ## Check the latest code on GitHub
 
@@ -30,12 +30,12 @@ chmod +x start.sh
 Open **http://127.0.0.1:2708/**.
 
 1. Start your chatbot, then paste its chat page or complete API link.
-2. Choose one or more judges. Use **Show available models**, select a model and enter its API key. Saved backend settings can be reused.
-3. Set repeats, allow test messages/judge access, then click **Start evaluation**.
+2. Check the selected **AI judge**. Open **Change model or API key** only if you want to change it; saved settings are reused.
+3. Set repeats, allow test messages/judge access, then click **Start test**.
 4. Open **Results** for scores, comparison and evidence. **Tokens and cost** keeps bot and judge costs separate. Download PDF or JSON.
-5. Open **Governance** in the same screen for audit integrity and data controls. The saved evaluation stays selected across views.
+5. Open **Governance** for audit integrity and data controls. Use **Previous tests** to choose another result, or **Refresh history** to reload the list. Your selection stays the same across views.
 
-**Advanced settings** are optional, collapsed controls inside Evaluate. No separate setup page is needed. Selecting a saved result keeps your current draft; use **Load this run’s settings** to reuse its configuration.
+**Advanced settings** are optional, collapsed controls inside Evaluate. Selecting a saved result keeps your current draft. The interface is English; original test prompts and bot answers retain their original language.
 
 For automatic local fallback, install a model in Ollama and run `ollama serve`. On a failed judge call, Studio can discover installed text models; it never downloads weights. Explicit fallback choices take priority. Judge fallback cannot repair an unavailable chatbot API.
 

@@ -54,7 +54,13 @@ async def upload(kind: str, file: UploadFile = File(...)):
             if len(raw) > intake.LIMITS["max_bytes"]:
                 raise HTTPException(413, "Input exceeds 20 MB.")
         return await asyncio.to_thread(intake.store, kind, bytes(raw), file.filename or "upload")
-    except (ValueError, OSError, UnicodeError, RecursionError, zipfile.BadZipFile) as exc:
+    except (
+        ValueError,
+        OSError,
+        UnicodeError,
+        RecursionError,
+        zipfile.BadZipFile,
+    ) as exc:
         raise HTTPException(422, str(exc)) from exc
     finally:
         await file.close()
@@ -82,7 +88,8 @@ async def repository(value: Repository):
         or len(pieces) not in (2, 4)
     ):
         raise HTTPException(
-            422, "Use https://github.com/owner/repo or /tree/ref for a public repository."
+            422,
+            "Use https://github.com/owner/repo or /tree/ref for a public repository.",
         )
     if not all(re.fullmatch(r"[A-Za-z0-9_.-]+", p) for p in pieces) or (
         len(pieces) == 4 and pieces[2] != "tree"
@@ -110,10 +117,12 @@ async def repository(value: Repository):
                     return result
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(
-            422, "Repository import failed or exceeded source limits; upload a source ZIP instead."
+            422,
+            "Repository import failed or exceeded source limits; upload a source ZIP instead.",
         ) from exc
     raise HTTPException(
-        404, "Public repository/ref not found; private repositories require a source ZIP."
+        404,
+        "Public repository/ref not found; private repositories require a source ZIP.",
     )
 
 
@@ -127,13 +136,10 @@ async def start(request: Assessment):
 
 @router.get("/runs")
 def list_runs():
-    return [
-        {
-            k: r.get(k)
-            for k in ("id", "status", "modes", "created_at", "blackbox_run_id", "combined")
-        }
-        for r in db.all_records("assurance")
-    ]
+    return db.record_summaries(
+        "assurance",
+        ("id", "status", "modes", "created_at", "blackbox_run_id", "combined"),
+    )
 
 
 @router.get("/runs/{ident}")
@@ -196,7 +202,11 @@ async def update_judges(ident: uuid.UUID, value: JudgesUpdate):
     cfg._used_secrets.extend(j.token.get_secret_value() for j in cfg.judges if j.token)
     cfg.judges = value.judges
     first = next(j for j in cfg.judges if not j.fallback)
-    cfg.judge_url, cfg.judge_model, cfg.judge_token = first.url, first.model, first.token
+    cfg.judge_url, cfg.judge_model, cfg.judge_token = (
+        first.url,
+        first.model,
+        first.token,
+    )
     cfg.judge_local_model = first.local
     run = LIVE_RUNS[str(ident)]
     run["config"]["judges"] = [j.model_dump(exclude={"token"}) for j in cfg.judges]
@@ -245,12 +255,14 @@ async def reproduce(ident: uuid.UUID, request: Assessment):
                     _, record = intake.load(input_id, kind)
                 except (ValueError, OSError) as exc:
                     raise HTTPException(
-                        422, "Re-upload the original deleted inputs before reproduction."
+                        422,
+                        "Re-upload the original deleted inputs before reproduction.",
                     ) from exc
                 supplied[(slot, kind)] = record["sha256"]
     if expected != supplied:
         raise HTTPException(
-            422, "Reproduce requires identical original input hashes; re-upload deleted inputs."
+            422,
+            "Reproduce requires identical original input hashes; re-upload deleted inputs.",
         )
     request.settings._protocol_override = original["protocol_snapshot"]
     request.settings._reproduced_from = str(ident)
@@ -310,7 +322,12 @@ def canary_logs(ident: uuid.UUID, value: CanaryLogs):
         verdict=finding.verdict,
     )
     run["input_hashes"].append(
-        {"bot": value.bot, "kind": "logs", "sha256": record["sha256"], "input_id": str(value.logs)}
+        {
+            "bot": value.bot,
+            "kind": "logs",
+            "sha256": record["sha256"],
+            "input_id": str(value.logs),
+        }
     )
     if not run.get("upload_retention_days"):
         intake.remove(str(value.logs))
@@ -358,7 +375,9 @@ def review(ident: uuid.UUID, value: Review):
     finding.update(overridden=True, review=False, review_reason=str(safe(value.reason)))
     if value.false_positive:
         finding.update(
-            verdict="pass", score=100 if finding["score"] is not None else None, severity="Pass"
+            verdict="pass",
+            score=100 if finding["score"] is not None else None,
+            severity="Pass",
         )
     # Preserve original evidence and verdict; never remove the finding.
     service.checkpoint(run)
@@ -373,9 +392,15 @@ class Retention(BaseModel):
 def retention(ident: uuid.UUID, value: Retention):
     run = get_run(ident)
     governance.append(
-        run, "retention_changed", previous=run.get("upload_retention_days", 0), days=value.days
+        run,
+        "retention_changed",
+        previous=run.get("upload_retention_days", 0),
+        days=value.days,
     )
-    run.update(upload_retention_days=value.days, upload_expires_at=time.time() + value.days * 86400)
+    run.update(
+        upload_retention_days=value.days,
+        upload_expires_at=time.time() + value.days * 86400,
+    )
     service.checkpoint(run)
     service.expire()
     return {"saved": True, "note": "Already deleted uploads cannot be restored."}
@@ -396,7 +421,10 @@ def delete(ident: uuid.UUID):
         metering.init_db(connection)
         connection.execute("DELETE FROM usage_events WHERE run_id=?", (str(ident),))
     db.delete("assurance", str(ident))
-    return {"deleted": True, "note": "Linked black-box history remains separately deletable."}
+    return {
+        "deleted": True,
+        "note": "Linked black-box history remains separately deletable.",
+    }
 
 
 @router.get("/runs/{ident}/download")

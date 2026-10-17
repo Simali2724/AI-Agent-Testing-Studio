@@ -100,6 +100,20 @@ def all_records(kind):
     return [json.loads(row[0]) for row in rows]
 
 
+def record_summaries(kind: str, fields: tuple[str, ...]) -> list[dict]:
+    """Read history metadata without decoding every transcript and audit log."""
+    if not fields or any(not field.isidentifier() for field in fields):
+        raise ValueError("Summary fields must be simple JSON property names.")
+    projection = ", ".join("?, json_extract(body, ?)" for _ in fields)
+    parameters = [value for field in fields for value in (field, f"$.{field}")]
+    with connect() as connection:
+        rows = connection.execute(
+            f"SELECT json_object({projection}) FROM records WHERE kind=? ORDER BY rowid DESC",
+            [*parameters, kind],
+        ).fetchall()
+    return [json.loads(row[0]) for row in rows]
+
+
 def delete(kind, ident):
     with connect() as db:
         db.execute("DELETE FROM records WHERE kind=? AND id=?", (kind, str(ident)))

@@ -572,10 +572,9 @@ async def resume_run(ident: uuid.UUID, config: Settings):
 
 @app.get("/api/blackbox/runs")
 def list_runs():
-    return [
-        {k: r.get(k) for k in ("id", "status", "started_at", "targets", "progress", "summary")}
-        for r in db.all_records("blackbox")
-    ]
+    return db.record_summaries(
+        "blackbox", ("id", "status", "started_at", "targets", "progress", "summary")
+    )
 
 
 def get_run(ident):

@@ -12,7 +12,7 @@ def test_simple_settings_and_screen():
     response = client.get("/api/studio/settings")
     assert response.status_code == 200
     assert len(response.json()["cases"]) == len(studio_engine.settings_file()["cases"])
-    assert "Test and compare chatbots" in client.get("/").text
+    assert "How well does your bot help people?" in client.get("/").text
 
 
 def test_live_change_records_models_without_keys():

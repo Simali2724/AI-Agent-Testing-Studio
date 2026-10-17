@@ -48,6 +48,9 @@ function application(initialUrl = "http://localhost:2708/") {
   const headings = Object.fromEntries(names.map((name) => [name, element()]));
   const fields = {
     "selected-run": element(),
+    "test-history": element(),
+    "history-toolbar": element(),
+    "refresh-history": element(),
     "run-toolbar": element(),
     "refresh-run": element(),
     "run-label": element(),
@@ -189,6 +192,20 @@ test("navigation shows one panel and marks its active link", () => {
   assertView(app, "evaluate");
 });
 
+test("a source assessment opens Results without selecting unrelated chat history", () => {
+  const app = application("http://localhost:2708/?assessment=source-a");
+  assertView(app, "results");
+  app.ui.setRuns([savedRun("older-chat-run")]);
+  assert.equal(app.ui.runId, null);
+  assert.equal(selectedEvents(app).length, 0);
+  assert.equal(app.fields["run-toolbar"].hidden, true);
+  app.clickView("governance");
+  assert.equal(app.url.searchParams.get("assessment"), "source-a");
+  assert.equal(app.ui.runId, null);
+  app.clickView("evaluate");
+  assert.equal(app.fields["run-toolbar"].hidden, true);
+});
+
 test("a selected run is preserved across all views", () => {
   const app = application("http://localhost:2708/?run=run-a#results");
   for (const view of ["governance", "evaluate", "results"]) {
@@ -246,7 +263,7 @@ test("Back to the hashless start URL restores Evaluate without selecting a run",
   const app = application();
   app.ui.setRuns([savedRun("run-a")]);
   app.clickView("results");
-  assert.equal(app.ui.runId, "run-a");
+  assert.equal(app.ui.runId, null);
   app.moveHistory(-1);
   assert.equal(app.url.hash, "");
   assertView(app, "evaluate");
@@ -254,18 +271,44 @@ test("Back to the hashless start URL restores Evaluate without selecting a run",
   assert.equal(app.url.searchParams.has("run"), false);
 });
 
-test("Results selects the first saved run only when no run is selected", () => {
+test("Results waits for an explicit history choice and preserves that choice", () => {
   const app = application();
   app.ui.setRuns([savedRun("newest"), savedRun("older")]);
   assert.equal(app.ui.runId, null, "Opening setup does not select historical data");
   app.clickView("results");
   assertView(app, "results");
-  assert.equal(app.ui.runId, "newest");
-  assert.equal(app.url.searchParams.get("run"), "newest");
-  assert.equal(selectedEvents(app).at(-1).detail.id, "newest");
+  assert.equal(app.ui.runId, null);
+  assert.equal(app.url.searchParams.has("run"), false);
+  assert.equal(selectedEvents(app).length, 0);
   app.ui.selectRun("older");
   app.ui.setRuns([savedRun("another"), savedRun("older")]);
   assert.equal(app.ui.runId, "older", "Refreshing history preserves explicit selection");
+});
+
+test("one history picker switches between assessments and chat runs and supports Back", () => {
+  const app = application("http://localhost:2708/#results");
+  app.ui.setRuns([savedRun("chat-a"), savedRun("linked-chat")]);
+  app.ui.setAssessments([
+    { id: "source-a", modes: ["white"], status: "completed", blackbox_run_id: "linked-chat" },
+  ]);
+  const picker = app.fields["test-history"];
+  assert.equal(picker.children.length, 3, "Linked chat results are not duplicated");
+  picker.value = "assessment:source-a";
+  picker.trigger("change");
+  assert.equal(app.url.searchParams.get("assessment"), "source-a");
+  assert.equal(app.url.searchParams.has("run"), false);
+  assert.equal(app.fields["run-toolbar"].hidden, true);
+  picker.value = "run:chat-a";
+  picker.trigger("change");
+  assert.equal(app.url.searchParams.get("run"), "chat-a");
+  assert.equal(app.url.searchParams.has("assessment"), false);
+  app.moveHistory(-1);
+  assert.equal(app.url.searchParams.get("assessment"), "source-a");
+  assert.equal(picker.value, "assessment:source-a");
+  assert.equal(
+    app.events.filter((event) => event.type === "studio:assessment-selected").at(-1).detail.id,
+    "source-a",
+  );
 });
 
 test("changing views preserves existing form nodes and entered values", () => {

@@ -690,3 +690,96 @@ pre {
     scroll-margin-top: 135px;
   }
 }
+
+/* Keep the everyday path compact; detailed controls remain available on demand. */
+.mode-options {
+  border: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.mode-options legend {
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0 0 6px;
+}
+.mode-options label {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0;
+}
+.mode-options label:has(input:checked) {
+  border-color: var(--accent);
+  background: #f4f2ff;
+}
+.repeat-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.repeat-control input {
+  width: 76px;
+  margin: 0;
+}
+.action-menu {
+  margin: 0;
+  padding: 10px 14px;
+}
+.action-menu[open] {
+  flex-basis: 100%;
+}
+.action-menu button {
+  margin: 4px;
+}
+#judge-summary {
+  font-weight: 600;
+  color: #343f58;
+  overflow-wrap: anywhere;
+}
+#judge-options {
+  margin-bottom: 0;
+}
+.source-inputs {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 6px;
+}
+.result-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.result-stats article {
+  padding: 16px;
+  background: #f6f7fb;
+  border-radius: 10px;
+}
+.result-stats strong {
+  display: block;
+  font-size: 1.6rem;
+  color: #202940;
+}
+.result-stats span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.finding-list > h3 {
+  margin-top: 22px;
+}
+@media (max-width: 600px) {
+  .app-header {
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  nav a {
+    padding: 8px 10px;
+    font-size: 0.82rem;
+  }
+  .mode-options {
+    flex-direction: column;
+  }
+}
