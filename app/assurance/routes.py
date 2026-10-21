@@ -16,8 +16,8 @@ from .. import database as db
 from ..blackbox import governance
 from ..blackbox.runner import ACTIVE
 from ..blackbox.studio_routes import JudgesUpdate
-from . import intake, service
-from .models import Assessment
+from . import intake, readiness, service
+from .models import Assessment, BotInputs, Mode
 from .privacy import safe
 from .white import WhiteEngine
 
@@ -134,10 +134,37 @@ async def repository(value: Repository):
     )
 
 
+class Preflight(BaseModel):
+    modes: list[Mode] = Field(min_length=1, max_length=3)
+    inputs: list[BotInputs] = Field(default_factory=list, max_length=4)
+    targets: list[dict] = Field(default_factory=list, max_length=4)
+
+
+async def readiness_report(modes: list[str], inputs: list[dict], targets: list[dict]) -> dict:
+    """Readiness never blocks a start; a failed check of readiness is itself recorded."""
+    try:
+        return await readiness.preflight(modes, inputs or [{} for _ in targets], targets)
+    except (ValueError, OSError, KeyError) as exc:
+        return {"checks": [], "counts": {}, "error": type(exc).__name__}
+
+
+@router.post("/preflight")
+async def preflight(value: Preflight):
+    """Show Ready, Needs input, Tool unavailable or Not applicable before a test starts."""
+    inputs = [i.model_dump() for i in value.inputs] or [{} for _ in value.targets] or [{}]
+    targets = [{k: v for k, v in t.items() if k in ("url", "archive_id")} for t in value.targets]
+    return await readiness_report(value.modes, inputs, targets)
+
+
 @router.post("/runs")
 async def start(request: Assessment):
+    inputs = [i.model_dump() for i in request.inputs] or [{} for _ in request.settings.targets]
+    targets = [
+        {"url": t.url, "archive_id": getattr(t, "archive_id", "")} for t in request.settings.targets
+    ]
+    report = await readiness_report(request.modes, inputs, targets)
     try:
-        return service.start(request)
+        return service.start(request, preflight=report)
     except (ValueError, OSError) as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -455,8 +482,16 @@ def download(ident: uuid.UUID, format: str = "json"):
             media_type="application/json",
             headers={"Content-Disposition": f'attachment; filename="assurance-{ident}.json"'},
         )
+    if format == "teammate":
+        return Response(
+            readiness.teammate_markdown(run),
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="assurance-{ident}-teammate.md"'
+            },
+        )
     if format != "pdf":
-        raise HTTPException(422, "Choose JSON or PDF.")
+        raise HTTPException(422, "Choose JSON, PDF or teammate.")
     from html import escape
 
     from reportlab.lib.styles import getSampleStyleSheet
@@ -473,6 +508,36 @@ def download(ident: uuid.UUID, format: str = "json"):
         ),
         Paragraph(escape(combined["reason"]), styles["Normal"]),
     ]
+    status = run["evidence_status"]
+    counts = status["counts"]
+    blocks += [
+        Paragraph("Evidence status", styles["Heading2"]),
+        Paragraph(
+            escape(
+                f"{counts['planned']} checks planned, {counts['processed']} processed. "
+                f"Measured: {counts['measured']} ({counts['passed']} passed, "
+                f"{counts['failed']} need attention). Declarations only: "
+                f"{counts['declarations']}. Not verified: {counts['unverified']}. "
+                f"Waiting for human review: {counts['human_review']}."
+            ),
+            styles["Normal"],
+        ),
+        Paragraph(escape(status["notice"] + " " + status["historical_note"]), styles["Normal"]),
+    ]
+    review = run.get("ai_source_review")
+    if review:
+        blocks += [
+            Paragraph("AI source review provenance", styles["Heading2"]),
+            Paragraph(
+                escape(
+                    f"Source: {review.get('model', '')}. {review.get('provider_model', '')} "
+                    f"{review.get('purpose', '')} Automation status: "
+                    f"{review.get('automation_status', 'not recorded')}"
+                ),
+                styles["Normal"],
+            ),
+        ]
+    guidance = {row["key"]: row for row in status["checks"]}
     for f in sorted(
         run["findings"],
         key=lambda f: {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Pass": 4}[f["severity"]],
@@ -493,6 +558,44 @@ def download(ident: uuid.UUID, format: str = "json"):
             ("How to fix it", "fix"),
         ):
             blocks.append(Paragraph(escape(label + ": " + f[key]), styles["Normal"]))
+        row = guidance.get(f"{f['bot']}:{f['mode']}:{f['test_id']}")
+        if row:
+            blocks.append(
+                Paragraph(
+                    escape(
+                        f"Result type: {row['outcome_label']} ({row['cause_label']}). {row['why']}"
+                    ),
+                    styles["Normal"],
+                )
+            )
+            if row["required_evidence"]:
+                blocks.append(
+                    Paragraph(
+                        escape("Evidence needed: " + "; ".join(row["required_evidence"])),
+                        styles["Normal"],
+                    )
+                )
+            if row["next_test"]:
+                blocks.append(
+                    Paragraph(
+                        escape(
+                            f"Owner action: {row['owner_action']} Next test: {row['next_test']}"
+                        ),
+                        styles["Normal"],
+                    )
+                )
+            extra = row.get("supplemental_review")
+            if extra:
+                blocks.append(
+                    Paragraph(
+                        escape(
+                            f"Supplemental {extra['source']}: "
+                            f"{extra['assessment'].replace('_', ' ')}. {extra['explanation']} "
+                            f"({extra['note']})"
+                        ),
+                        styles["Normal"],
+                    )
+                )
         for e in f["evidence"]:
             blocks.append(
                 Paragraph(

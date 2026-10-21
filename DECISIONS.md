@@ -271,3 +271,11 @@ Store ordinary judge credentials in Studio's own ignored .env. Resolve them by t
 - Generic secret matches in narrowly recognized model-name assignments are unverified review items, not confirmed credentials or automatic passes. OSV placeholders/unresolved versions are Not tested with retained advisory context. Exact scanner-reported versions do not establish deployed versions. Raw secrets/matched source text remain redacted.
 - Assurance mutations must validate the existing audit/findings seal. Recovery and automatic retention cannot re-seal corrupt records; the owner can inspect/delete them explicitly. Open review items block a Ready to launch label. This is local tamper detection, not immutable external audit storage or certification.
 - This phase is validated with offline synthetic fixtures and local browser tests, not real provider evaluations or uploaded application execution. Shared-host authentication, dependency locking and native platform qualification remain separate work.
+
+## 2026-10-21 — Readiness and outcome are explanations, not verdicts
+
+- Keep the four `Finding.verdict` values. Preflight readiness (Ready, Needs input, Tool unavailable, Not applicable) is a separate stored report, and outcome classes (insufficient evidence, tool unavailable, missing input, not attempted, declaration, flagged, confirmed by review, cleared by review) are derived for display and export. This avoids a scoring, export and backward-compatibility migration.
+- Not applicable is used only when a check structurally cannot apply (Bandit with no Python files). Missing lockfiles, workflows or container files are Needs input, never Not applicable.
+- A scanner "fail" is Flagged until a person keeps it in review; only then is it Confirmed by review. Source declarations stay Declaration only.
+- Historical runs are explained by conservative inference from saved fields and are never rewritten. New White findings record `details.outcome` explicitly.
+- Guidance text and cause types live in `app/studio/evidence-guidance.json` so wording can change without code changes.

@@ -8,11 +8,17 @@ Tick **White** to upload a source ZIP or import a public GitHub repository. Code
 
 Before starting, confirm that you own the bots/code or have written permission. The confirmation is recorded. Gray review defaults to local Ollama; cloud review of redacted Gray inputs requires a separate opt-in for that run. White never sends code to an LLM. Installed-only local fallback may change the judge, never the chatbot's provider/model. Every fallback is recorded; a missing chatbot API cannot be repaired by changing its judge.
 
+## Check readiness first
+
+Open **Check readiness before starting** on Evaluate. Each planned check shows **Ready**, **Needs input**, **Tool unavailable** or **Not applicable**, with the reason and next step. Ready means the check can be attempted, not that it will pass. For a source ZIP, Studio reads only the file list and small dependency files; it never extracts or runs the code for this step. Control checks can at most find a declaration from source text. The readiness report is saved with the test.
+
 ## Read the results
 
 Combined links findings by **bot and category**, not proven causal dataflow. A declaration in code/config is only **exists**. It becomes **Defended** only with passing behavioral evidence. Failures plus a code/config gap produce **Confirmed risk**; a declared control plus failed behavior produces **Control exists but isn't working**. No cause is invented for a failure without supporting code/config evidence.
 
 Basic/Standard/Full describe the selected evidence modes; they are not certifications. Missing evidence and low-confidence estimates prevent a launch-ready verdict. Critical and low-confidence findings enter the review queue. A false-positive decision needs a written reason and keeps the original finding and old/new verdict in the audit log.
+
+Counts are kept apart: **processed** (the check ran), **measured** (passed or needs attention), **declarations only**, **not verified** and **waiting for review**. Each unverified check says whether the cause is information missing from the bot's files, a Studio limitation, a missing input or an interrupted test, and lists the evidence needed and the next test. Older saved tests get the same explanation without being re-run or changed. **Download list for a teammate** (More actions) exports these unresolved checks as Markdown; the PDF carries the same guidance.
 
 Every finding has four short parts and its evidence. Interface headings and guidance are in English. Original judge explanations, prompts and evidence retain their original language.
 

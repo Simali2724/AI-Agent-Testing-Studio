@@ -11,6 +11,7 @@ from . import sandbox
 from .intake import load, unpack
 from .models import Evidence, Finding, missing
 from .privacy import safe
+from .readiness import check_guidance
 
 CHECKS = {
     "hardcoded_secrets": ("code_security", "gitleaks"),
@@ -28,6 +29,21 @@ CHECKS = {
     "endpoint_controls": ("configuration_reliability", "controls"),
     "ci_safety": ("configuration_reliability", "controls"),
 }
+
+
+def unverified(bot: int, test: str, reason: str, outcome: str, tool: str = "") -> Finding:
+    """A not-tested White Finding that records why, so the UI never has to guess."""
+    finding = missing("white", bot, CHECKS[test][0], test, reason)
+    finding.details = {"outcome": outcome}
+    finding.tool = tool
+    action = check_guidance("white", test).get("owner_action")
+    if outcome == "insufficient_evidence" and action:
+        finding.fix = action
+    elif outcome == "missing_input":
+        finding.fix = "Supply a valid source ZIP or public repository, then rerun this check."
+    elif outcome in ("tool_unavailable", "tool_error"):
+        finding.fix = "Install or repair the named scanner, then rerun this check."
+    return finding
 
 
 def _model_assignment(line: str, rule: str) -> bool:
@@ -99,10 +115,9 @@ def parse(test: str, output: dict, source: Path, bot: int) -> Finding:
     review_note = ""
 
     def unscored(reason: str) -> Finding:
-        finding = missing("white", bot, category, test, reason)
-        finding.tool = tool
+        finding = unverified(bot, test, reason, "insufficient_evidence", tool)
         finding.tool_version = output["version"]
-        finding.details = details
+        finding.details = {**details, "outcome": "insufficient_evidence"}
         finding.evidence = evidence
         finding.consequence = "Available scanner evidence is insufficient to score this check; do not treat it as a pass."
         return finding
@@ -358,12 +373,11 @@ class WhiteEngine:
         bot, ident = plan[0]["bot"], plan[0]["code"]
         if not ident:
             return [
-                missing(
-                    "white",
+                unverified(
                     bot,
-                    row["category"],
                     row["test"],
                     "Upload a source ZIP or import a GitHub repository.",
+                    "missing_input",
                 )
                 for row in plan
             ]
@@ -391,12 +405,11 @@ class WhiteEngine:
                     path.chmod(0o755 if path.is_dir() else 0o644)
                 if not any(p.is_file() for p in source.rglob("*")):
                     return [
-                        missing(
-                            "white",
+                        unverified(
                             bot,
-                            r["category"],
                             r["test"],
                             "Source archive contains no files to scan.",
+                            "missing_input",
                         )
                         for r in plan
                     ]
@@ -413,15 +426,13 @@ class WhiteEngine:
                         output = tools[tool]
                         if isinstance(output, str):
                             batch.append(
-                                missing("white", bot, row["category"], row["test"], output)
+                                unverified(bot, row["test"], output, "tool_unavailable", tool)
                             )
                             continue
                         try:
                             batch.append(parse(row["test"], output, source, bot))
                         except (ValueError, KeyError, TypeError) as exc:
-                            batch.append(
-                                missing("white", bot, row["category"], row["test"], str(exc))
-                            )
+                            batch.append(unverified(bot, row["test"], str(exc), "tool_error", tool))
                     results.extend(batch)
                     if self.on_progress:
                         self.on_progress(batch)
@@ -429,12 +440,8 @@ class WhiteEngine:
                 return [indexed[r["test"]] for r in plan]
         except (ValueError, OSError) as exc:
             return [
-                missing(
-                    "white",
-                    bot,
-                    row["category"],
-                    row["test"],
-                    type(exc).__name__ + ": input unavailable.",
+                unverified(
+                    bot, row["test"], type(exc).__name__ + ": input unavailable.", "missing_input"
                 )
                 for row in plan
             ]
