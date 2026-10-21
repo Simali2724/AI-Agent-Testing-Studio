@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from .. import database as db
 from ..blackbox import governance
 from ..blackbox.runner import ACTIVE
+from ..blackbox.schema import JudgeSelection
 from ..blackbox.studio_routes import JudgesUpdate
 from . import intake, readiness, service
 from .models import Assessment, BotInputs, Mode
@@ -311,6 +312,48 @@ async def reproduce(ident: uuid.UUID, request: Assessment):
     return service.start(request)
 
 
+class ExplainRequest(BaseModel):
+    judges: list[JudgeSelection] = Field(default_factory=list, max_length=3)
+    cloud_consent: bool = False
+
+
+@router.post("/runs/{ident}/explain")
+async def explain_run(ident: uuid.UUID, value: ExplainRequest):
+    """Add a supplemental AI explanation of White findings; verdicts never change."""
+    from ..blackbox.schema import Settings
+    from .explain import explain
+
+    run = get_run(ident)
+    require_integrity(run)
+    if str(ident) in service.TASKS:
+        raise HTTPException(409, "Wait for the test to finish before asking for an explanation.")
+    if "white" not in run.get("modes", []):
+        raise HTTPException(422, "Only White-box results can be explained here.")
+    try:
+        config = Settings.model_validate({**run["config"], "judges": value.judges})
+    except ValueError as exc:
+        raise HTTPException(422, "The saved test settings could not be loaded.") from exc
+    result = await explain(run, config, value.cloud_consent)
+    run = get_run(ident)  # Re-read: the explanation call may take a while.
+    require_integrity(run)
+    run.setdefault("ai_explanations", []).append(result)
+    governance.append(
+        run,
+        "ai_explanation",
+        status=result["status"],
+        model=result.get("model", ""),
+        cloud_consent=value.cloud_consent,
+        payload_hash=result["payload_hash"],
+        attempts=[
+            {k: a.get(k) for k in ("model", "local", "status", "output_hash")}
+            for a in result["attempts"]
+        ],
+        note="Supplemental explanation; findings unchanged.",
+    )
+    service.checkpoint(run)
+    return result
+
+
 class Review(BaseModel):
     bot: int = Field(ge=0, le=3)
     mode: str
@@ -541,7 +584,7 @@ def download(ident: uuid.UUID, format: str = "json"):
         ),
         Paragraph(escape(status["notice"] + " " + status["historical_note"]), styles["Normal"]),
     ]
-    review = run.get("ai_source_review")
+    review = readiness.supplemental(run)
     if review:
         blocks += [
             Paragraph("AI source review provenance", styles["Heading2"]),

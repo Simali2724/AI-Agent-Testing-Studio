@@ -32,6 +32,10 @@ Uploads default to deletion after a run; a retention setting can keep them for u
 
 The canary is synthetic, not a real secret or customer's phone. Its chat includes the assessment run ID. Logs uploaded before that chat cannot establish its logging behavior. After the chat, upload new JSON/JSONL/OTel logs, then choose **Attach updated canary logs** on the matching bot card. Only records correlated to that run ID can score this check; old canaries cannot become a new pass/fail.
 
+## Optional AI explanation of White-box results
+
+On a finished White-box test, open **Ask an AI judge to explain the White-box results**. The judge receives only the masked reasons and excerpts already in the report, must return one entry per check ID with quotes copied exactly from them, and is rejected otherwise. Local judges are used unless you tick the cloud box for that one request. Every attempt, including rejected output and unknown billing, is recorded. The explanation never changes a result or a review.
+
 ## Runtime checks from a test environment
 
 Source files can only show declarations. Four Gray-box checks measure behavior from structured records that you export from an **approved test environment** after a test starts: runtime tool permissions, session expiry, model used and timeouts/retries. Every record must carry the test's `run_id` and a `check` name (`tool_permissions`, `retention`, `timeouts_retries`; model metadata needs only `run_id` and `gen_ai.response.model`). Records from another run or without a run ID are excluded and counted. Upload the file, then choose **Attach updated test logs** for the saved test.
@@ -56,6 +60,8 @@ docker pull aquasec/trivy:0.61.1
 ```
 
 The selected revisions are pinned in `app/studio/scanners.json`. Runs never auto-pull images. The runtime version is checked and the inspected image content ID is executed/recorded. Scanner processes have 512 MB RAM, one CPU, 64 PIDs, bounded output, a 60-second scan timeout, a read-only source mount and temporary no-exec storage. Timed-out containers are removed by their random name. Uploaded ignore files cannot disable Studio rules.
+
+Check readiness offline with `python scripts/prepare_scanner_data.py check --zip <source.zip>`. To build a package-scoped OSV snapshot for one bot, download the official ecosystem `all.zip` yourself, then run `python scripts/prepare_scanner_data.py scope --zip <source.zip> --full-db PyPI=<all.zip> --out runtime/scanner-databases/osv-<name>` and point `STUDIO_SCANNER_OSV_DATABASE` at it. The script never downloads anything and refuses to overwrite an existing folder.
 
 OSV needs a prepared offline database under `runtime/scanner-databases/osv`; Trivy needs its database/check bundle under `runtime/scanner-databases/trivy`. Provision/update these using the pinned tools **outside** an evaluation, then mount them read-only. No database means Not tested, not a clean vulnerability scan. Filesystem/container-configuration scanning is supported; uploaded container images are not built or started. The custom control rules (`controls-v2`) combine text rules with Python `ast` parsing; they never import or run the code. A handler for an upstream provider's `RateLimitError` is reported but is not counted as inbound access control. They identify declarations, not comprehensive control flow or complete CI execution.
 

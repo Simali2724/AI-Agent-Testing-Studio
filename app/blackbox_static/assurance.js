@@ -219,7 +219,25 @@
     const run = current,
       c = run.combined,
       costs = run.assurance_costs;
-    const aiReview = run.ai_source_review;
+    const explanations = run.ai_explanations || [];
+    const accepted = [...explanations].reverse().find((item) => item.status === "accepted");
+    const aiReview =
+      run.ai_source_review ||
+      (accepted && {
+        ...accepted,
+        model: `${accepted.source} by ${accepted.model}`,
+        automation_status: accepted.attempts.map((a) => `${a.model}: ${a.status}`).join("; "),
+      });
+    const lastExplanation = explanations[explanations.length - 1];
+    const explainPanel =
+      run.modes.includes("white") && !active(run) && tab !== "gray"
+        ? `<details class="explain-panel"><summary>Ask an AI judge to explain the White-box results</summary>
+          <p class="helper">The explanation is added beside the results. It never changes a result. Local judges are used unless you allow a cloud judge below.</p>
+          <label><input type="checkbox" id="explain-cloud"> Allow the selected cloud judge to read redacted source excerpts for this explanation only.</label>
+          <button type="button" id="explain-run">Explain results</button>
+          ${lastExplanation ? `<p class="helper">Last attempt: ${esc(lastExplanation.status === "accepted" ? `accepted from ${lastExplanation.model}` : lastExplanation.reason || "not accepted")}</p><ul>${lastExplanation.attempts.map((a) => `<li>${esc(a.model)} · ${esc(a.status)}${a.reason ? ` · ${esc(a.reason)}` : ""}</li>`).join("")}</ul>` : ""}
+        </details>`
+        : "";
     const aiChecks = new Map((aiReview?.checks || []).map((item) => [item.test_id, item]));
     const headings = ["What we checked", "What we found", "Why it matters", "How to fix it"];
     const opened = new Set(
@@ -309,7 +327,30 @@
           })
           .join("")}
       </div>
+      ${explainPanel}
       <p class="helper">${c.review_queue.length} findings need review. <a href="#governance" data-view="governance">View governance</a></p>`;
+    const explainButton = root.querySelector("#explain-run");
+    if (explainButton)
+      explainButton.onclick = async () => {
+        try {
+          explainButton.disabled = true;
+          tell("Asking the judge to explain the results…");
+          const result = await api(`/api/assurance/runs/${id}/explain`, {
+            judges: judges(),
+            cloud_consent: root.querySelector("#explain-cloud").checked,
+          });
+          tell(
+            result.status === "accepted"
+              ? "Explanation added. Results are unchanged."
+              : result.reason || "No explanation was accepted.",
+          );
+          await refresh();
+        } catch (error) {
+          tell(error.message);
+        } finally {
+          explainButton.disabled = false;
+        }
+      };
     root.querySelectorAll("[data-review]").forEach(
       (button) =>
         (button.onclick = async () => {

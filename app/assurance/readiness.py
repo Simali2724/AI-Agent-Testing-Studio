@@ -92,6 +92,7 @@ def inventory(archive: Path) -> dict:
         "requirements": [],
         "exact_packages": [],
         "unresolved_packages": [],
+        "packages": [],
     }
     with zipfile.ZipFile(archive) as bundle:
         for item in bundle.infolist():
@@ -118,19 +119,24 @@ def inventory(archive: Path) -> dict:
                     exact, unresolved = _requirements(text)
                     result["exact_packages"] += exact
                     result["unresolved_packages"] += unresolved
+                    result["packages"] += [["PyPI", name] for name in exact + unresolved]
             elif lower == "package-lock.json" and item.file_size <= INVENTORY_BYTES:
                 try:
                     data = json.loads(bundle.read(item).decode("utf-8", errors="replace"))
                 except ValueError:
                     continue
                 packages = data.get("packages") or {}
-                result["exact_packages"] += [
+                names = [
                     key.rsplit("node_modules/", 1)[-1]
                     for key, value in packages.items()
                     if key and isinstance(value, dict) and value.get("version")
                 ]
+                result["exact_packages"] += names
+                result["packages"] += [["npm", name] for name in names]
     for key in ("exact_packages", "unresolved_packages"):
         result[key] = sorted(set(result[key]))
+    result["packages"] = sorted({tuple(item) for item in result["packages"]})
+    result["packages"] = [list(item) for item in result["packages"]]
     return safe(result)
 
 
@@ -304,7 +310,11 @@ async def preflight(modes: list[str], inputs: list[dict], targets: list[dict]) -
     for bot, fields in enumerate(inputs):
         if "white" in modes:
             files = inventories[bot]
-            notes = {"osv": osv_coverage(files["exact_packages"])} if files else {}
+            notes = (
+                {"osv": osv_coverage(files["exact_packages"] + files["unresolved_packages"])}
+                if files
+                else {}
+            )
             for test, (_, tool) in WHITE.items():
                 state = _white_row(test, tool, files, tools, notes)
                 if tool == "controls" and state["status"] == "ready":
@@ -389,12 +399,29 @@ def outcome(finding: dict) -> str:
     return "unverified"
 
 
+def supplemental(run: dict) -> dict:
+    """The saved assistant review, else the latest accepted automated explanation."""
+    if run.get("ai_source_review"):
+        return run["ai_source_review"]
+    for item in reversed(run.get("ai_explanations", [])):
+        if item.get("status") == "accepted":
+            attempts = "; ".join(
+                f"{a.get('model', '')}: {a.get('status', '')}" for a in item.get("attempts", [])
+            )
+            return {
+                **item,
+                "model": f"{item['source']} by {item.get('model', 'unknown model')}",
+                "automation_status": attempts,
+            }
+    return {}
+
+
 def evidence_status(run: dict) -> dict:
     """Counts and per-check guidance for a saved run, derived without mutating it."""
     catalogue = guidance()
     outcomes, causes = catalogue["outcomes"], catalogue["causes"]
-    review = run.get("ai_source_review") or {}
-    supplemental = {item.get("test_id"): item for item in review.get("checks", [])}
+    review = supplemental(run)
+    reviewed = {item.get("test_id"): item for item in review.get("checks", [])}
     rows = []
     for finding in run.get("findings", []):
         code = outcome(finding)
@@ -430,11 +457,11 @@ def evidence_status(run: dict) -> dict:
                 "unresolved": unresolved,
                 "supplemental_review": {
                     "source": review.get("model", "AI source review"),
-                    "assessment": supplemental[finding["test_id"]].get("assessment", ""),
-                    "explanation": supplemental[finding["test_id"]].get("explanation", ""),
+                    "assessment": reviewed[finding["test_id"]].get("assessment", ""),
+                    "explanation": reviewed[finding["test_id"]].get("explanation", ""),
                     "note": "Supplemental explanation; the recorded verdict is unchanged.",
                 }
-                if finding["mode"] == "white" and finding["test_id"] in supplemental
+                if finding["mode"] == "white" and finding["test_id"] in reviewed
                 else None,
             }
         )

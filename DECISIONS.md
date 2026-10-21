@@ -287,3 +287,10 @@ Store ordinary judge credentials in Studio's own ignored .env. Resolve them by t
 - A pass needs both sides of the behavior: an unauthorized attempt that did not execute and an authorized one that did; a session seen before and gone after the TTL; an injected fault plus a timed response. Otherwise the check stays Not tested.
 - Expectations are captured when the run starts and reused when later logs are attached, so a later upload cannot change the limits it is judged against.
 - The control worker parses Python with `ast` inside the scanner container and copies out only recognizable model names and numbers, never other literals.
+
+## 2026-10-21 — White AI explanations and scanner provisioning
+
+- An automated explanation is accepted only with every planned check ID exactly once, a fixed assessment vocabulary, and quotes that are exact substrings of the supplied reason or excerpts. Anything else is rejected and kept as a failed attempt; there is no partial acceptance.
+- Explanations are appended to `ai_explanations` with an audit event; they never rewrite `ai_source_review`, findings, scores or reviews. The earlier assistant review stays the displayed review where present.
+- Cloud judges are used only when the explanation request sets `cloud_consent`; earlier consent for specific VoltKart excerpts is not generalized.
+- Scanner data preparation is an explicit maintainer step outside evaluations. The script works only on files already on disk and writes a new folder; scoped snapshots are checked again at scan time against every package OSV inspected.
