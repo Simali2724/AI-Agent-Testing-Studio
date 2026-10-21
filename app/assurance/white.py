@@ -2,8 +2,10 @@
 
 import ast
 import asyncio
+import io
 import re
 import tempfile
+import tokenize
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
@@ -47,6 +49,72 @@ def unverified(bot: int, test: str, reason: str, outcome: str, tool: str = "") -
     return finding
 
 
+def _model_literal(literal: str) -> bool:
+    """A structured, lower-case model identifier; key prefixes never qualify."""
+    return bool(
+        re.fullmatch(r"[a-z][a-z0-9]*(?:[./:_-][a-z0-9]+)+", literal)
+        and not re.match(r"(?:sk-|gh[opusr]_|xox[baprs]-|AIza|AQ\.)", literal, re.I)
+        and (any(character.isdigit() for character in literal) or literal.endswith("-latest"))
+    )
+
+
+def _model_key(name: str) -> bool:
+    name = name.lower()
+    return name == "model" or name.endswith("_model")
+
+
+def _model_mapping_entry(line: str) -> bool:
+    """Qualify a dict-literal line such as ``"x": {"api_model": "model-1", ...}``.
+
+    Only string literals and ``: , { }`` are allowed, so assignments or code on the same
+    line take the normal credential path. Every other string value must look like a
+    model name or plain words without digits; anything opaque keeps the alert.
+    """
+    try:
+        tokens = []
+        for token in tokenize.generate_tokens(io.StringIO(line.strip()).readline):
+            tokens.append(token)
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        pass  # An unclosed brace at end of a fragment is expected.
+    significant = [
+        t
+        for t in tokens
+        if t.type not in (tokenize.NEWLINE, tokenize.NL, tokenize.ENDMARKER, tokenize.INDENT)
+    ]
+    if not significant or any(
+        t.type not in (tokenize.STRING, tokenize.OP)
+        or (t.type == tokenize.OP and t.string not in ":,{}")
+        for t in significant
+    ):
+        return False
+    try:
+        values = [
+            (ast.literal_eval(significant[i - 2].string), ast.literal_eval(t.string))
+            for i, t in enumerate(significant)
+            if t.type == tokenize.STRING
+            and i >= 2
+            and significant[i - 1].string == ":"
+            and significant[i - 2].type == tokenize.STRING
+        ]
+    except (ValueError, SyntaxError):
+        return False
+    if not all(isinstance(k, str) and isinstance(v, str) for k, v in values):
+        return False
+    if not any(_model_key(k) and _model_literal(v) for k, v in values):
+        return False
+    if any(re.search(r"key|secret|token|passw|credential|auth", k, re.I) for k, _ in values):
+        return False
+    return all(
+        not re.match(r"(?:sk-|gh[opusr]_|xox[baprs]-|AIza|AQ\.)", v, re.I)
+        and (
+            _model_literal(v)
+            or re.fullmatch(r"[A-Za-z][A-Za-z_ .()&/'-]*", v)
+            or (" " in v and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 .()&/'+-]*", v))
+        )
+        for _, v in values
+    )
+
+
 def _model_assignment(line: str, rule: str) -> bool:
     """Qualify generic model-name matches; never allowlist provider credential rules."""
     if rule != "generic-api-key":
@@ -54,27 +122,21 @@ def _model_assignment(line: str, rule: str) -> bool:
     try:
         statements = ast.parse(line.strip()).body
     except (SyntaxError, ValueError, RecursionError):
-        return False
+        return _model_mapping_entry(line)
     if len(statements) != 1 or not isinstance(statements[0], (ast.Assign, ast.AnnAssign)):
         return False
     statement = statements[0]
     targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
     if len(targets) != 1 or not isinstance(targets[0], ast.Name):
         return False
-    name = targets[0].id.lower()
     value = statement.value
-    if not (name == "model" or name.endswith("_model")):
+    if not _model_key(targets[0].id):
         return False
     if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
         return False
     # A structured, lower-case name is only context for review, never proof of safety.
     # Key prefixes and opaque/random strings still take the normal credential path.
-    literal = value.value
-    return bool(
-        re.fullmatch(r"[a-z][a-z0-9]*(?:[./:_-][a-z0-9]+)+", literal)
-        and not re.match(r"(?:sk-|gh[opusr]_|xox[baprs]-|AIza|AQ\.)", literal, re.I)
-        and (any(character.isdigit() for character in literal) or literal.endswith("-latest"))
-    )
+    return _model_literal(value.value)
 
 
 def _reported_exact_version(version: object) -> bool:

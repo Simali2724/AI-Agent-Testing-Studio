@@ -294,3 +294,7 @@ Store ordinary judge credentials in Studio's own ignored .env. Resolve them by t
 - Explanations are appended to `ai_explanations` with an audit event; they never rewrite `ai_source_review`, findings, scores or reviews. The earlier assistant review stays the displayed review where present.
 - Cloud judges are used only when the explanation request sets `cloud_consent`; earlier consent for specific VoltKart excerpts is not generalized.
 - Scanner data preparation is an explicit maintainer step outside evaluations. The script works only on files already on disk and writes a new folder; scoped snapshots are checked again at scan time against every package OSV inspected.
+
+## 2026-10-21 — Model names in mapping literals
+
+A generic secret match on a dict-literal line is qualified as a model-name review item only when the line contains nothing but string literals and `: , { }`, at least one `*model` key holds a structured model identifier, no key looks secret-like, and every other value is a model identifier or plain words. Everything else keeps the credential alert. Qualified matches remain Not tested with review, never a pass.
