@@ -4,6 +4,7 @@ import ast
 import asyncio
 import re
 import tempfile
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from . import sandbox
 from .intake import load, unpack
 from .models import Evidence, Finding, missing
 from .privacy import safe
-from .readiness import check_guidance
+from .readiness import check_guidance, inventory
 
 CHECKS = {
     "hardcoded_secrets": ("code_security", "gitleaks"),
@@ -288,10 +289,35 @@ def parse(test: str, output: dict, source: Path, bot: int) -> Finding:
         if not data.get("files"):
             return unscored("No supported source files were inspected.")
         hits = data.get("hits", {}).get(test, [])
-        if not hits:
-            return unscored(
-                "No matching control evidence found by these limited text rules; absence is not proven.",
+        observed = data.get("observations", {}).get(test, [])
+        if observed or "observations" in data:
+            details.update(
+                source_observations=safe(observed[:10]),
+                python_files_parsed=data.get("python_files_parsed", 0),
+                python_parse_errors=safe(data.get("python_parse_errors", [])[:10]),
+                observation_note="Structured source declarations; not runtime behavior.",
             )
+        if test == "endpoint_controls" and any(
+            o.get("kind") == "upstream_rate_limit_handler" for o in observed
+        ):
+            review_note = (
+                " Upstream provider rate-limit handlers were found; they do not limit or "
+                "authenticate incoming requests."
+            )
+        if not hits:
+            reason = (
+                "No matching control evidence found by these limited text rules; "
+                "absence is not proven."
+            )
+            if observed:
+                reason += " Source parsing observed: " + "; ".join(
+                    f"{o['kind'].replace('_', ' ')}"
+                    + (f" ({o['value']})" if "value" in o else "")
+                    + f" at {o['file']}:{o['line']}"
+                    for o in observed[:3]
+                )
+                reason += ". These are declarations, not runtime proof."
+            return unscored(str(safe(reason)) + review_note)
         evidence = [source_evidence(source, h["file"], h["line"]) for h in hits[:10]]
         control = test not in ("pii_logging", "model_config")
     # A successful scan is scoped to its rules, not universal security coverage.
@@ -415,6 +441,22 @@ class WhiteEngine:
                     ]
                 tools = {}
                 results = []
+                try:
+                    files = await asyncio.to_thread(inventory, archive)
+                except (ValueError, OSError, zipfile.BadZipFile):
+                    files = None
+                summary = (
+                    {
+                        "lockfiles": files["lockfiles"][:20],
+                        "requirements_files": files["requirements"][:20],
+                        "container_configs": files["container_configs"][:20],
+                        "exact_packages": len(files["exact_packages"]),
+                        "unresolved_packages": files["unresolved_packages"][:50],
+                        "note": "Supplied files only; not proof of deployed versions.",
+                    }
+                    if files
+                    else None
+                )
                 # Keep memory bounded on modest hardware; parallel engines, serial scanner tools.
                 for tool in dict.fromkeys(row["tool"] for row in plan):
                     try:
@@ -433,6 +475,12 @@ class WhiteEngine:
                             batch.append(parse(row["test"], output, source, bot))
                         except (ValueError, KeyError, TypeError) as exc:
                             batch.append(unverified(bot, row["test"], str(exc), "tool_error", tool))
+                    for finding in batch:
+                        if summary and finding.test_id in (
+                            "dependency_vulnerabilities",
+                            "container_vulnerabilities",
+                        ):
+                            finding.details["inventory"] = summary
                     results.extend(batch)
                     if self.on_progress:
                         self.on_progress(batch)

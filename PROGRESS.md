@@ -758,3 +758,9 @@ Added truthful preflight readiness and missing-evidence guidance (T-017, parts o
 For the saved VoltKart run 5fc9089d: 14 planned, 14 processed, 5 measured (3 passed, 2 flagged), 1 declaration, 8 not verified (all "finished, not enough evidence"), 10 waiting for review. No scan was re-run and no record was modified.
 
 Validation: 16 new tests in `tests/test_evidence_readiness.py`; the assurance, source-evidence, scanner, integrity, UI and API suites passed (105 tests) with the browser test extended for readiness escaping and new counts. Ruff, Prettier and JS syntax checks passed. No provider calls.
+
+## 2026-10-21 — Evidence readiness, Phase B
+
+Control scanner `controls-v2` adds syntax-only Python parsing (no imports or execution): upstream `RateLimitError`/quota handlers are reported but no longer count as endpoint access control; inbound limiter decorators, auth `Depends(...)` and middleware count as declarations; timeouts, model names and in-memory session stores are recorded as structured observations with unsafe literals withheld. White dependency findings carry a supplied-file inventory summary. Four new Gray-box runtime checks (tool permissions, session expiry, model metadata, timeouts/retries) evaluate only records that carry this run's ID; stale or unrelated records are excluded and counted. Owner-declared limits are captured at run start, and Attach updated test logs re-evaluates them. Tolerances live in `gray-v1.json` `runtime_policy`.
+
+Validation: `tests/test_source_controls.py` (4) and `tests/test_runtime_evidence.py` (9) use controlled fixtures (ownership-checking and broken order tools, an injectable-clock session store, model metadata drift, and a bounded-retry bot against an httpx 429/503 stub). With the existing assurance, scanner, UI and API suites: 125 passed. These validate Studio's logic, not VoltKart's behavior. No provider calls.

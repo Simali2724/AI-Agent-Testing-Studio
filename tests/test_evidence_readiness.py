@@ -246,6 +246,9 @@ def test_new_white_findings_record_outcome_and_specific_next_step(tmp_path, monk
     results = asyncio.run(engine.run(engine.plan({"code": record["id"]})))
     assert {f.details["outcome"] for f in results} == {"tool_unavailable"}
     assert all(f.verdict == "not_tested" and f.tool for f in results)
+    dependency = next(f for f in results if f.test_id == "dependency_vulnerabilities")
+    assert dependency.details["inventory"]["lockfiles"] == []
+    assert "not proof" in dependency.details["inventory"]["note"]
 
 
 def test_preflight_route_start_records_readiness_and_exports_escape(monkeypatch):

@@ -279,3 +279,11 @@ Store ordinary judge credentials in Studio's own ignored .env. Resolve them by t
 - A scanner "fail" is Flagged until a person keeps it in review; only then is it Confirmed by review. Source declarations stay Declaration only.
 - Historical runs are explained by conservative inference from saved fields and are never rewritten. New White findings record `details.outcome` explicitly.
 - Guidance text and cause types live in `app/studio/evidence-guidance.json` so wording can change without code changes.
+
+## 2026-10-21 — Runtime evidence must be run-correlated
+
+- Runtime checks are Gray-box Findings with their own IDs (`runtime_*`) that name the White check they corroborate in `details.corroborates`. They never change the White Finding, so a source declaration is never promoted into a pass.
+- Only records with this assessment's `run_id` (and the matching `check` name) are evaluated. Uncorrelated or other-run records are counted and excluded. Bot wording is never evidence that a tool did not run.
+- A pass needs both sides of the behavior: an unauthorized attempt that did not execute and an authorized one that did; a session seen before and gone after the TTL; an injected fault plus a timed response. Otherwise the check stays Not tested.
+- Expectations are captured when the run starts and reused when later logs are attached, so a later upload cannot change the limits it is judged against.
+- The control worker parses Python with `ast` inside the scanner container and copies out only recognizable model names and numbers, never other literals.

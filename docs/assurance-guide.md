@@ -32,6 +32,17 @@ Uploads default to deletion after a run; a retention setting can keep them for u
 
 The canary is synthetic, not a real secret or customer's phone. Its chat includes the assessment run ID. Logs uploaded before that chat cannot establish its logging behavior. After the chat, upload new JSON/JSONL/OTel logs, then choose **Attach updated canary logs** on the matching bot card. Only records correlated to that run ID can score this check; old canaries cannot become a new pass/fail.
 
+## Runtime checks from a test environment
+
+Source files can only show declarations. Four Gray-box checks measure behavior from structured records that you export from an **approved test environment** after a test starts: runtime tool permissions, session expiry, model used and timeouts/retries. Every record must carry the test's `run_id` and a `check` name (`tool_permissions`, `retention`, `timeouts_retries`; model metadata needs only `run_id` and `gen_ai.response.model`). Records from another run or without a run ID are excluded and counted. Upload the file, then choose **Attach updated test logs** for the saved test.
+
+- Tool permissions: `principal`, `resource_owner`, `tool`, `tool_executed`. A pass needs an unauthorized attempt that did not run and an authorized call that did. What the bot said is ignored.
+- Session expiry: declare `retention_ttl_seconds` in the Gray-box configuration; records need `session_ref`, `session_created_at`, `observed_at` (number or ISO time) and `session_present`.
+- Model used: declare `expected_model` (or the bot's model field). Missing metadata stays Not tested.
+- Timeouts and retries: declare `timeout_seconds` and `max_retries`; records need `stage=upstream_attempt` with `status_code` or `injected_delay_ms` from a slow/error provider stub, and one `stage=bot_response` with `elapsed_ms`.
+
+Tolerances are in `runtime_policy` in `app/studio/gray-v1.json`. Use synthetic users and sessions only; never real customer data. Studio's own fixture tests check this logic and say nothing about a real bot.
+
 ## Optional scanner setup (maintainer)
 
 Docker is only required for White scanner isolation; Black and Gray do not require it. Install Docker yourself, then provision these **trusted scanner images**, separately from any submitted source:
@@ -46,7 +57,7 @@ docker pull aquasec/trivy:0.61.1
 
 The selected revisions are pinned in `app/studio/scanners.json`. Runs never auto-pull images. The runtime version is checked and the inspected image content ID is executed/recorded. Scanner processes have 512 MB RAM, one CPU, 64 PIDs, bounded output, a 60-second scan timeout, a read-only source mount and temporary no-exec storage. Timed-out containers are removed by their random name. Uploaded ignore files cannot disable Studio rules.
 
-OSV needs a prepared offline database under `runtime/scanner-databases/osv`; Trivy needs its database/check bundle under `runtime/scanner-databases/trivy`. Provision/update these using the pinned tools **outside** an evaluation, then mount them read-only. No database means Not tested, not a clean vulnerability scan. Filesystem/container-configuration scanning is supported; uploaded container images are not built or started. The custom text rules identify declarations, not comprehensive control flow or complete CI execution.
+OSV needs a prepared offline database under `runtime/scanner-databases/osv`; Trivy needs its database/check bundle under `runtime/scanner-databases/trivy`. Provision/update these using the pinned tools **outside** an evaluation, then mount them read-only. No database means Not tested, not a clean vulnerability scan. Filesystem/container-configuration scanning is supported; uploaded container images are not built or started. The custom control rules (`controls-v2`) combine text rules with Python `ast` parsing; they never import or run the code. A handler for an upstream provider's `RateLimitError` is reported but is not counted as inbound access control. They identify declarations, not comprehensive control flow or complete CI execution.
 
 The HHEM adapter needs separately installed, reviewed offline weights and configuration in `app/studio/settings.json`. Its dedicated Gray metric is Not tested when unavailable; a rubric estimate is never labeled an HHEM score. The setup does not download models automatically.
 

@@ -327,7 +327,8 @@ class CanaryLogs(BaseModel):
 @router.post("/runs/{ident}/canary-logs")
 def canary_logs(ident: uuid.UUID, value: CanaryLogs):
     from ..blackbox.schema import Target
-    from .gray import log_finding
+    from .gray import log_finding, runtime_expectations
+    from .runtime_evidence import RUNTIME_CHECKS, evaluate
 
     run = get_run(ident)
     require_integrity(run)
@@ -341,27 +342,43 @@ def canary_logs(ident: uuid.UUID, value: CanaryLogs):
         f["bot"] == value.bot and f["test_id"] == "canary_chat" and f["evidence"]
         for f in run["findings"]
     )
-    if not planted:
+    saved = {
+        f["test_id"]: f
+        for f in run["findings"]
+        if f["mode"] == "gray" and f["bot"] == value.bot and f["test_id"] in RUNTIME_CHECKS
+    }
+    if not planted and not saved:
         raise HTTPException(422, "No recorded synthetic canary conversation for this bot.")
     try:
         data, record = intake.load(str(value.logs), "logs")
     except (OSError, ValueError) as exc:
         raise HTTPException(422, "Upload the new structured logs first.") from exc
-    finding = log_finding(
-        "canary_logging",
-        data,
-        record.get("metadata", {}),
-        Target.model_validate(run["config"]["targets"][value.bot]),
-        value.bot,
-        str(ident),
-    )
-    service.record_findings(run, [finding])
+    target = Target.model_validate(run["config"]["targets"][value.bot])
+    findings = []
+    if planted:
+        findings.append(
+            log_finding(
+                "canary_logging", data, record.get("metadata", {}), target, value.bot, str(ident)
+            )
+        )
+    policy = run.get("protocol_snapshot", {}).get("gray_suite", {}).get("runtime_policy", {})
+    for test, old in saved.items():
+        # Reuse the limits declared when the run started; a later upload cannot change them.
+        expectations = old.get("details", {}).get("expectations") or runtime_expectations(
+            {}, target, policy
+        )
+        result = evaluate(test, data, str(ident), value.bot, expectations)
+        result.details["expectations"] = expectations
+        findings.append(result)
+    service.record_findings(run, findings)
+    finding = findings[0]
     governance.append(
         run,
         "canary_logs_added",
         bot=value.bot,
         input_hash=record["sha256"],
         verdict=finding.verdict,
+        verdicts={f.test_id: f.verdict for f in findings},
     )
     run["input_hashes"].append(
         {
@@ -374,7 +391,7 @@ def canary_logs(ident: uuid.UUID, value: CanaryLogs):
     if not run.get("upload_retention_days"):
         intake.remove(str(value.logs))
     service.checkpoint(run)
-    return {"finding": finding.model_dump()}
+    return {"finding": finding.model_dump(), "findings": [f.model_dump() for f in findings]}
 
 
 @router.post("/runs/{ident}/review")
