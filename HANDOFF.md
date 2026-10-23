@@ -1,3 +1,7 @@
+## 2026-10-23 — Published upgrades and runtime evidence correction
+
+All four evidence-readiness commits through 740ae4c were integrated into the shared C: publishing history and pushed as c43261c to AwsomeACES/chatbot-compare/hussain-code. CI found a random UUID/phone-redaction collision in runtime logs, separate from the historical socket-release failure. Fix f263e5c preserves only canonical top-level run_id UUIDs while retaining PII and credential redaction. Deterministic regression tests reproduce the collision; 67 focused tests pass. The two fixed source/test files were copied here byte-for-byte from the tested C: checkout. Check the latest shared workflow for final remote status. This local repository's personal origin was not pushed. Historical saved runs and credentials were untouched.
+
 ## 2026-10-21 — Evidence readiness and the eight unverified checks (current task)
 
 Worked in `D:/AI-Agent-Testing-Studio`, branch `codex/industry-reliability`, local commits only (origin is the personal repo `Simali2724/AI-Agent-Testing-Studio`; nothing was pushed, and the C: publishing checkout was not touched). Commits on top of `0c00e3b`: `6474d5d` (Phase A readiness and guidance), `0c0b7be` (Phase B AST controls and runtime checks), `cb6f0d1` (Phase C explanations and scanner provisioning), and the Phase D commit with the mapping-entry secret qualifier and these docs.
