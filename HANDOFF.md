@@ -1,3 +1,11 @@
+## 2026-10-23 — T-035 Judge calibration (current task)
+
+Implemented locally in `D:/AI-Agent-Testing-Studio` (branch `codex/industry-reliability`), uncommitted and unpushed. See PROGRESS.md for files, DECISIONS.md for decisions and docs/tasks.md T-035 (In progress: needs owner commit/review and real human-labeled data).
+
+Verified: calibration tests 56 (core 47, API 6, UI 3), related suites 118, navigation 11, Ruff, Prettier, JS syntax and docs checker. Full-suite result: 447 passed, 1 skipped (Windows symlink privilege) in 183 s.
+
+Next steps: review and commit the scoped diff; collect representative human labels and record a validation run with a real local Judge; consider mapping rubric changes for reference-driven categories; verify native macOS/Linux separately (not exercised).
+
 ## 2026-10-23 — Published upgrades and runtime evidence correction
 
 All four evidence-readiness commits through 740ae4c were integrated into the shared C: publishing history and pushed as c43261c to AwsomeACES/chatbot-compare/hussain-code. CI found a random UUID/phone-redaction collision in runtime logs, separate from the historical socket-release failure. Fix f263e5c preserves only canonical top-level run_id UUIDs while retaining PII and credential redaction. Deterministic regression tests reproduce the collision; 67 focused tests pass. The two fixed source/test files were copied here byte-for-byte from the tested C: checkout. Check the latest shared workflow for final remote status. This local repository's personal origin was not pushed. Historical saved runs and credentials were untouched.
