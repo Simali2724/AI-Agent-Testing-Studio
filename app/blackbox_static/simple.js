@@ -168,12 +168,19 @@ const money = (n, local = false) => {
   if (n === 0 && local) return "$0 (local)";
   return n > 0 && n < 100 ? "<$0.0001" : "$" + (n / 1000000).toFixed(6);
 };
-const costMoney = (row) =>
-  row?.cost_micro_usd != null &&
-  Number(row.exact_micro_usd) > 0 &&
-  Number(row.exact_micro_usd) < 100
+const costMoney = (row) => {
+  if (row?.cost_micro_usd == null) {
+    const unknown = window.StudioStatus.QUALIFIER.unknown;
+    return row?.known_cost_micro_usd == null
+      ? unknown
+      : `${money(row.known_cost_micro_usd)} known subtotal <small>Total ${unknown.toLowerCase()} — some charges are missing.</small>`;
+  }
+  return row?.cost_micro_usd != null &&
+    Number(row.exact_micro_usd) > 0 &&
+    Number(row.exact_micro_usd) < 100
     ? "<$0.0001"
     : money(row?.cost_micro_usd, row?.calls > 0 && row.local_calls === row.calls);
+};
 function table(head, rows) {
   return `<div class="scroll"><table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
@@ -397,35 +404,24 @@ function render(run) {
         .map((b) => ({ ...b.evaluation, label: "Judge: " + b.name })),
     ];
     const max = Math.max(1, ...rows.map((r) => r.input_tokens + r.output_tokens));
-    const maxCost = Math.max(1, ...rows.map((r) => r.cost_micro_usd || 0));
+    const chartCost = (r) => r.cost_micro_usd ?? r.known_cost_micro_usd;
+    const maxCost = Math.max(1, ...rows.map((r) => chartCost(r) || 0));
     $("costs").innerHTML =
       '<div class="cost-summary"><span>Bot cost <strong>' +
       costMoney(costs.bot) +
-      "</strong></span><span>Judge cost <strong>" +
+      `</strong><small>${costs.bot.input_tokens.toLocaleString()} input / ${costs.bot.output_tokens.toLocaleString()} output tokens</small></span><span>Judge cost <strong>` +
       costMoney(costs.evaluation) +
-      "</strong></span></div>" +
-      '<details class="subtle-details"><summary>View token counts and cost charts</summary>' +
+      `</strong><small>${costs.evaluation.input_tokens.toLocaleString()} input / ${costs.evaluation.output_tokens.toLocaleString()} output tokens</small></span></div>` +
+      "<h3>Usage by bot and judge</h3>" +
       table(
-        [
-          "Bot / judge",
-          "Input",
-          "Output",
-          "Reasoning (included in output)",
-          "Tokens chart",
-          "USD cost",
-          "Cost chart",
-        ],
+        ["Bot / judge", "Tokens (input / output)", "USD cost / known subtotal"],
         rows.map((r) => [
           esc(r.label),
-          r.input_tokens,
-          r.output_tokens,
-          r.reasoning_tokens || 0,
-          bar(r.input_tokens + r.output_tokens, max),
-          costMoney(r),
-          r.cost_micro_usd == null ? "Unknown" : bar(r.cost_micro_usd, maxCost),
+          `${r.input_tokens.toLocaleString()} / ${r.output_tokens.toLocaleString()}${bar(r.input_tokens + r.output_tokens, max)}`,
+          costMoney(r) + (chartCost(r) == null ? "" : bar(chartCost(r), maxCost)),
         ]),
       ) +
-      `<p>Bot total: ${costMoney(costs.bot)}. Evaluation total: ${costMoney(costs.evaluation)}. Hidden bot calls require its own telemetry. Token totals can include estimates for failed or opaque calls; JSON records each source.</p></details>`;
+      '<p class="helper">Dollar amounts use this run’s saved prices, not a provider invoice. Known subtotals exclude missing charges. Token totals may include estimates; hidden bot calls need the bot’s own usage reporting. Reasoning tokens are already included in output.</p>';
   } else
     $("costs").innerHTML =
       '<p class="empty-state">Cost is unavailable for this run. Missing usage is never treated as free.</p>';

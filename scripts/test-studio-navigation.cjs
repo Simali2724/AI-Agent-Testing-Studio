@@ -8,6 +8,27 @@ const vm = require("node:vm");
 const repo = process.env.STUDIO_REPO || path.resolve(__dirname, "..");
 const source = readFileSync(path.join(repo, "app/blackbox_static/shell.js"), "utf8");
 
+test("cost summary keeps known subtotals visible without inventing a complete bill", () => {
+  const simple = readFileSync(path.join(repo, "app/blackbox_static/simple.js"), "utf8");
+  const context = vm.createContext({
+    window: { StudioStatus: { QUALIFIER: { unknown: "Unknown" } } },
+  });
+  vm.runInContext(
+    simple.slice(simple.indexOf("const money ="), simple.indexOf("function table(")),
+    context,
+  );
+  const format = (row) => vm.runInContext(`costMoney(${JSON.stringify(row)})`, context);
+  assert.match(
+    format({ cost_micro_usd: null, known_cost_micro_usd: 131359 }),
+    /\$0\.131359 known subtotal/,
+  );
+  assert.match(format({ cost_micro_usd: null, known_cost_micro_usd: 131359 }), /Total unknown/);
+  assert.equal(format({ cost_micro_usd: null }), "Unknown");
+  assert.equal(format({ cost_micro_usd: 63179 }), "$0.063179");
+  assert.equal(format({ cost_micro_usd: 0, calls: 1, local_calls: 1 }), "$0 (local)");
+  assert.match(format({ cost_micro_usd: null, known_cost_micro_usd: 0 }), /Total unknown/);
+});
+
 function element(dataset = {}) {
   const listeners = new Map();
   return {
