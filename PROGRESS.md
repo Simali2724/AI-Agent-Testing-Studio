@@ -1372,3 +1372,44 @@ including every genuine saved failure and every self-consistent pass left alone,
 unusable score ignored, and the endpoint test above. Full suite: **770 passed, 1 skipped** in
 122.25 s. Navigation 15 passed. Isolated browser check passed every section with zero browser
 errors. Ruff, Prettier, JavaScript syntax and the documentation checker pass.
+
+## 2026-10-29 - Phase I: calibration identity gap and export parity
+
+**A real gap the Phase B change exposed.** `judge_calibration.mismatch_reasons` compared the Judge
+model, endpoint, `template_hash`, `validation_hash`, `generation_hash`, policy, scope and per-item
+criterion text. The claim rules travel in the **user** payload, not the system message, so
+supplying or editing a reference profile changed `rubric_fingerprint` but left every compared
+dimension identical: an alignment recorded without a declaration would still have reported as
+aligned. Section 9 requires the opposite.
+
+- `judge_prompts.claim_rules_fingerprint(config)` gives the claim rules their own identity, joined
+  into `template_fingerprint` and into `evaluator_fingerprint`'s hashed `id`. Supplying a profile,
+  editing a declared fact, and declaring a capability each change it independently; the same
+  profile is stable across calls.
+- `mismatch_reasons` reports "Reference facts or capability declarations changed." A record written
+  before the dimension existed is read with `.get()` and treated as a **mismatch**, because an
+  absent dimension cannot be shown to match - it is not quietly accepted as aligned.
+- `resolve_compatibility` takes the profile, and `alignment_for_run` and the saved-run provenance
+  view pass the Run's own saved declaration, so a historical Run is judged against the rules it
+  actually used. A stored profile that no longer validates falls back to no profile; the resulting
+  hash mismatch keeps the status conservative instead of raising.
+- The Phase A direction change was already caught by `template_hash` (the system message changed),
+  so `rubric-v2-compliance-direction` correctly invalidates alignment recorded under the ambiguous
+  scale. A test now pins that version string to the fingerprint.
+
+**Export parity.** The screen named a contradicted verdict but the PDF did not. `reports.py` now
+carries, with the same wording: per-result self-consistency and each contradicting judge, per-judge
+consistency state, the saved-verdict review with its coverage note, the reference inputs with their
+declaration provenance and counts, and the judge panel policy including the discovery note. A
+report never mutates the Run it renders.
+
+Verification on this tree: 11 new calibration-identity tests (65 in `tests/test_judge_calibration.py`)
+and 7 new report-parity tests (29 in `tests/test_judge_provenance.py`). Full suite: **787 passed,
+1 skipped** in 248.94 s. Navigation 15 passed. Isolated browser check passed every section with
+zero browser errors, including the calibration panel. Ruff over 116 files, Prettier, JavaScript
+syntax and the documentation checker pass.
+
+Note for the owner: because evaluator identity now includes the direction contract and the claim
+rules, any calibration recorded earlier reports as **stale** rather than aligned. No real
+human-labelled sample exists yet, so nothing measured was lost; collecting labels under the current
+rubric remains the outstanding external prerequisite.

@@ -81,6 +81,20 @@ def _source_hash(*objects) -> str:
     return digest([inspect.getsource(o) for o in objects])
 
 
+def claim_rules_fingerprint(config) -> str:
+    """Identity of the owner-declared reference facts and capability rules in force.
+
+    The claim rules travel in the user payload rather than the system message, so they do not
+    reach `template_hash`. They are part of the rubric a verdict was produced under, so they get
+    their own identity: supplying or editing a reference profile must invalidate an alignment
+    recorded without it.
+    """
+    from . import reference_profile
+    from .execution_cache import digest
+
+    return digest(reference_profile.guidance(getattr(config, "reference_profile", None)))
+
+
 def template_fingerprint(config) -> dict:
     """Prompt-template identity from the canonical builder (independent of any transcript)."""
     from .execution_cache import digest
@@ -99,6 +113,7 @@ def template_fingerprint(config) -> dict:
         "generation_hash": digest(
             {k: v for k, v in single.items() if k not in ("messages", "model")}
         ),
+        "claim_rules_hash": claim_rules_fingerprint(config),
     }
 
 
@@ -148,6 +163,7 @@ def evaluator_fingerprint(config, returned_model: str = "") -> dict:
         "template_version": t["version"],
         "template_hash": t["template_hash"],
         "generation_hash": t["generation_hash"],
+        "claim_rules_hash": t["claim_rules_hash"],
         "validation_hash": validation_fingerprint(),
     }
     # Provider-returned names are not immutable revisions, so they stay out of the identity hash.
