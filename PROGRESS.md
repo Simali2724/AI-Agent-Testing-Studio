@@ -1449,3 +1449,36 @@ realm, so an array built there has a different prototype and `assert.deepEqual` 
 `node:assert/strict` rejects it even when the contents match: copy with `Array.from` first. And
 Prettier reflows prose in `simple.html`, so a markup assertion should collapse whitespace rather
 than match across line breaks.
+
+## 2026-10-29 - Phase K: displaying the panel policy, failed judges and local-fallback cost
+
+Three requirements were only half delivered: the judge panel policy was recorded on the Run and
+printed in the PDF but never shown on screen; `judge_failures` carried the Phase E classification
+per result and was never rendered at all; and a local fallback was labelled "local" without saying
+what that costs in time.
+
+- **Judges that did not produce a verdict here** now appears with each failed judge's condition
+  ("Billing or credit exhausted", "Rate limited", "Model not available to this account"), its HTTP
+  status when one was returned, the recorded reason, and the owner action from
+  `provider_status.STATES`. A condition waiting cannot resolve adds "Waiting will not resolve
+  this." A transient one does not, so a rate limit is not dressed up as an account problem.
+- **Which judges were allowed, and what happens when one fails** lists the requested judges, the
+  declared fallbacks, whether automatic local fallback is on, every panel rule, and the discovery
+  note. A saved Run with no recorded policy renders nothing rather than a guess.
+- A local fallback verdict now says it runs on this machine, so it is slower than a hosted judge,
+  and that its API fee is zero while hardware cost is excluded. That explains a slow run without
+  implying the evaluation was free.
+
+All provider-supplied text on these paths is escaped. The failure rows carry a model name and an
+error string that come from a provider, so a test asserts that a script tag, an `img` tag and
+markup in the action text are rendered as data rather than as HTML.
+
+Verification on this tree: 6 new navigation tests (23 in that file), covering the classified
+failure, the transient case, the empty and absent cases, escaping, the policy block and the
+missing-policy case. Full suite: **793 passed, 1 skipped** in 182.40 s. Isolated browser check
+passed every section with zero browser errors, including `escaped_model_output`. Measured contrast:
+**44 pairs, 0 failing, 0 skipped**. Ruff, Prettier, JavaScript syntax and the documentation checker
+pass.
+
+With this the Black-box side matches what White-box already did: a result that produced no
+measurement says why and what to do next, rather than leaving the reader to infer it.

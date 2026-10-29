@@ -310,7 +310,7 @@ function render(run) {
   if (!studio) {
     // Display the saved summary without converting it to the newer scoring protocol.
     $("verdict").innerHTML =
-      `<details class="subtle-details"><summary>Saved evaluation results — scoring details</summary><p>Run ${esc(run.id)} · ${esc(run.status)}. Original scoring rules are preserved. Not tested means missing evidence, not a failed answer.</p><p>${esc(run.score_formula || "Quality and coverage are reported separately.")}</p></details>${verdictConsistency()}${evaluatorProvenance()}`;
+      `<details class="subtle-details"><summary>Saved evaluation results — scoring details</summary><p>Run ${esc(run.id)} · ${esc(run.status)}. Original scoring rules are preserved. Not tested means missing evidence, not a failed answer.</p><p>${esc(run.score_formula || "Quality and coverage are reported separately.")}</p></details>${verdictConsistency()}${evaluatorProvenance()}${panelPolicy()}`;
     $("scores").innerHTML = (run.targets || [])
       .map((target, index) => {
         const summary = run.summary?.[index];
@@ -335,7 +335,7 @@ function render(run) {
     $("relevance-charts").innerHTML = "";
   } else {
     $("verdict").innerHTML =
-      `<div class="verdict-card"><h3>${studio.winner == null ? (studio.bots.length === 1 ? "Evaluation summary" : "Comparison summary") : "Winner: " + esc(run.targets[studio.winner].name)}</h3><p>${esc(studio.confidence_note)}</p>${generalWarnings(studio).length ? `<p class="unknown">${generalWarnings(studio).map(esc).join(" ")}</p>` : ""}${familyWarnings(studio)}</div>${verdictConsistency()}${evaluatorProvenance()}<details class="subtle-details"><summary>How to read these scores</summary><p>${esc(studio.formula)}</p><p>Not tested is missing evidence, not a failed answer. It contributes zero to this evaluation index. Measured quality and coverage are shown separately.</p></details>`;
+      `<div class="verdict-card"><h3>${studio.winner == null ? (studio.bots.length === 1 ? "Evaluation summary" : "Comparison summary") : "Winner: " + esc(run.targets[studio.winner].name)}</h3><p>${esc(studio.confidence_note)}</p>${generalWarnings(studio).length ? `<p class="unknown">${generalWarnings(studio).map(esc).join(" ")}</p>` : ""}${familyWarnings(studio)}</div>${verdictConsistency()}${evaluatorProvenance()}${panelPolicy()}<details class="subtle-details"><summary>How to read these scores</summary><p>${esc(studio.formula)}</p><p>Not tested is missing evidence, not a failed answer. It contributes zero to this evaluation index. Measured quality and coverage are shown separately.</p></details>`;
     if (studio.comparison) {
       const comparison = studio.comparison;
       $("verdict").innerHTML +=
@@ -497,8 +497,13 @@ function render(run) {
     const why = (verdict.fallback_reasons || [])
       .map((row) => `${esc(row.model)}: ${esc(row.reason)}`)
       .join("; ");
+    /* A local fallback runs on this machine: it is slower than a hosted judge and its API fee
+       is zero while the hardware cost is excluded. Saying so explains a slow run. */
+    const slow = verdict.local
+      ? " Runs on this machine, so it is slower than a hosted judge; its API fee is zero and hardware cost is excluded."
+      : "";
     const fallback = verdict.fallback
-      ? `<br><small class="provenance">Fallback evaluator. ${why ? `Requested judge unavailable — ${why}` : "Reason not recorded."}</small>`
+      ? `<br><small class="provenance">Fallback evaluator. ${why ? `Requested judge unavailable — ${why}` : "Reason not recorded."}${slow}</small>`
       : "";
     return `<br><small class="provenance">Actual evaluator: ${parts.join(" · ")}. Returned names are not guaranteed immutable revisions.</small>${fallback}`;
   }
@@ -599,6 +604,38 @@ function render(run) {
     }<p class="helper">${esc(info.note)} ${esc(info.coverage_note)}</p></details>`;
   }
 
+  /* Providers that failed on this Case, with the condition and the action it implies. Recorded
+     per result by the panel; an account or billing problem is not a chatbot defect. */
+  function judgeFailures(result) {
+    const rows = (result?.judge_failures || []).filter(Boolean);
+    if (!rows.length) return "";
+    const items = rows
+      .map((row) => {
+        const label = row.label || window.StudioStatus.label(row.state || "unknown");
+        const waiting = row.retryable === false ? " Waiting will not resolve this." : "";
+        const status = row.http_status ? ` HTTP ${esc(row.http_status)}.` : "";
+        return `<li><strong>${esc(row.model || "Judge")}: ${esc(label)}.</strong>${status} ${esc(row.reason || "")}${esc(waiting)}${row.action ? ` <em>Next action: ${esc(row.action)}</em>` : ""}</li>`;
+      })
+      .join("");
+    return `<div class="unknown"><p><strong>Judges that did not produce a verdict here</strong></p><ul>${items}</ul></div>`;
+  }
+
+  /* What the panel was allowed to do, stated rather than inferred from which judges appear. */
+  function panelPolicy() {
+    const policy = run.judge_policy;
+    if (!policy) return "";
+    const requested =
+      (policy.requested_judges || [])
+        .map((j) => `${esc(j.model)}${j.local ? " (local)" : ""}`)
+        .join(", ") || "none recorded";
+    const fallbacks =
+      (policy.declared_fallbacks || [])
+        .map((j) => `${esc(j.model)}${j.local ? " (local)" : ""}`)
+        .join(", ") || "none declared";
+    const rules = (policy.rules || []).map((rule) => `<li>${esc(rule)}</li>`).join("");
+    return `<details class="subtle-details" id="judge-policy"><summary>Which judges were allowed, and what happens when one fails</summary><p>Requested judges: ${requested}. Declared fallbacks: ${fallbacks}. Automatic local fallback: ${policy.automatic_local_fallback ? "on" : "off"}.</p><ul>${rules}</ul><p class="helper">${esc(policy.discovery_note || "")}</p></details>`;
+  }
+
   function caseEvidence(category) {
     return run.cases
       .filter((c) => c.category === category)
@@ -607,7 +644,7 @@ function render(run) {
           `<div class="case-evidence"><h4>${esc(c.name)} · case ${c.scenario_index || 1}, repeat ${c.repeat ?? 1}</h4><div class="grid">${c.results
             .map(
               (r, i) =>
-                `<article><strong>${esc(run.targets[i].name)} <span class="pill">${esc(window.StudioStatus.label(r.status))}</span></strong><p>Score: ${r.score == null ? `${window.StudioStatus.RESULT.not_tested}${studio ? " (index contribution 0)" : " (excluded from measured quality)"}` : r.score + "/100"}</p><p>${r.human_review_note ? "<strong class=badge>Overridden — reason logged</strong> " : ""}${r.needs_review ? `<strong>${esc(window.StudioStatus.QUALIFIER.needs_review)}</strong> ` : ""}${esc(r.reason)}</p>${consistencyNotice(r)}${(r.judges || []).map((j) => `<p class="judge-reason">Judge: ${esc(j.model)} — ${j.score}%${judgeConsistency(j)}<br>Evidence: ${j.evidence.map(esc).join(" | ")}${judgeProvenance(j)}</p>`).join("")}${nonJudgeEngine(r)}${window.renderEvidenceDetails(c, r)}${r.transcript
+                `<article><strong>${esc(run.targets[i].name)} <span class="pill">${esc(window.StudioStatus.label(r.status))}</span></strong><p>Score: ${r.score == null ? `${window.StudioStatus.RESULT.not_tested}${studio ? " (index contribution 0)" : " (excluded from measured quality)"}` : r.score + "/100"}</p><p>${r.human_review_note ? "<strong class=badge>Overridden — reason logged</strong> " : ""}${r.needs_review ? `<strong>${esc(window.StudioStatus.QUALIFIER.needs_review)}</strong> ` : ""}${esc(r.reason)}</p>${consistencyNotice(r)}${(r.judges || []).map((j) => `<p class="judge-reason">Judge: ${esc(j.model)} — ${j.score}%${judgeConsistency(j)}<br>Evidence: ${j.evidence.map(esc).join(" | ")}${judgeProvenance(j)}</p>`).join("")}${judgeFailures(r)}${nonJudgeEngine(r)}${window.renderEvidenceDetails(c, r)}${r.transcript
                   .map(
                     (t) => `<div class="transcript"><strong>User:</strong> ${esc(t.input)}
 <strong>Bot:</strong> ${esc(t.output || t.error || "No response")}
