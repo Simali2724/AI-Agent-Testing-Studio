@@ -4,7 +4,7 @@ import asyncio
 import json
 import math
 
-from . import judge_consistency, metering
+from . import judge_consistency, metering, reference_profile
 from .deterministic import evaluate_exact
 from .evidence import validate_evidence
 from .quota import ProviderQuotaUnavailable, quota_reason
@@ -313,6 +313,9 @@ async def evaluate(config, case, observation):
         "category": case["category"],
         "criterion": case["expected"],
         "reference": case["reference"],
+        # Separates an invented identifier-specific value from a known or merely unverified
+        # general policy or capability. Owner-declared only; no target source is ever read here.
+        "claim_rules": reference_profile.guidance(config.reference_profile),
         "policy": config.policy,
         "scope": config.scope,
         "transcript": observation["transcript"],

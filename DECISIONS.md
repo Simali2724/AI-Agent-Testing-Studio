@@ -437,3 +437,27 @@ Changing the direction contract changes evaluator identity: `PROMPT_TEMPLATE_VER
 reports as stale instead of aligned. Verdicts saved before the contract carry no consistency marker;
 they are reported as unverifiable rather than retrospectively treated as checked, and their derived
 values are unchanged.
+
+## Reference facts, capability declarations and missing evaluator knowledge
+
+Missing evaluator knowledge is not evidence of a chatbot defect. The claim rules in
+`app/blackbox/reference_profile.py` (`claim-rules-v1`) split three things the previous rubric
+conflated: inventing a value for an unsupported identifier, which is non-compliant with or without
+any declaration; rejecting or correcting an unverified premise, which is compliant; and stating a
+general policy or offering a capability, which without a declaration is reported as **unverified**
+rather than scored as invention or absence.
+
+The asymmetry is deliberate. An unsupported identifier value always fails, so the rules cannot be
+read as a general permission. A chatbot is also never required to describe its answer in terms of
+the evaluator's reference set, because it cannot know that artefact exists.
+
+An owner may supply a `ReferenceProfile` of general facts and capabilities. Every profile carries
+provenance, and a declaration written from a review of the target's own source is refused unless
+the owner explicitly approved it: source observations belong to White-box or Gray-box review and
+must not reach a Black-box Judge silently. A declared capability shows that the capability exists,
+never that its authorisation is sufficient, which remains a separate finding.
+
+The claim rules are part of the rubric fingerprint. Supplying or editing a profile therefore makes a
+separately identifiable evaluation rather than a silent correction of an earlier one, and
+invalidates a calibration recorded without it. Each Run records the rules version and the profile's
+provenance; a Run without a profile records that absence rather than implying full knowledge.

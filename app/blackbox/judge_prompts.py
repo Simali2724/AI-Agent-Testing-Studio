@@ -112,13 +112,25 @@ def validation_fingerprint() -> str:
 
 
 def rubric_fingerprint(payload: dict) -> str:
-    """Rubric/context identity: criterion, references, category, subtype, policy and scope."""
+    """Rubric/context identity: criterion, references, claim rules, category, subtype, policy, scope.
+
+    The claim rules are part of the rubric, so supplying or changing a reference profile makes a
+    separately identifiable evaluation and invalidates an alignment recorded without it.
+    """
     from .execution_cache import digest
 
     return digest(
         {
             k: payload.get(k)
-            for k in ("category", "criterion", "reference", "policy", "scope", "bias_subtype")
+            for k in (
+                "category",
+                "criterion",
+                "reference",
+                "claim_rules",
+                "policy",
+                "scope",
+                "bias_subtype",
+            )
         }
     )
 
