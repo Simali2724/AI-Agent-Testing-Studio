@@ -524,7 +524,7 @@ and labelled as having no measurement.
 ## The selected result is reconciled against the history list
 
 A Run resumed or stopped outside the page changes the history list while the loaded detail keeps its
-old snapshot, and the fast heartbeat only polls while the *loaded* status is active. The two are now
+old snapshot, and the fast heartbeat only polls while the _loaded_ status is active. The two are now
 compared, and a disagreement re-reads the detail; a slower list refresh runs only while the loaded
 result looks finished, so a completed Run is never polled every few seconds. This was diagnosed from
 the polling code rather than inferred from the symptom.
