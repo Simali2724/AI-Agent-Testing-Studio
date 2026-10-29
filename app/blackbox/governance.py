@@ -268,7 +268,7 @@ def verify(run: dict) -> dict:
 
 
 def describe(run: dict) -> dict:
-    from . import judge_provenance
+    from . import judge_consistency, judge_provenance
     from .judge_calibration import alignment_for_run
 
     rows = [r for c in run.get("cases", []) for r in c["results"]]
@@ -334,6 +334,9 @@ def describe(run: dict) -> dict:
         "judge_provenance": judge_provenance.describe(run),
         # Human-label alignment is separate from run_integrity.agreement_percent (model vs model).
         "human_alignment": alignment_for_run(run),
+        # A later reading of saved verdicts whose score contradicts their own explanation. It
+        # changes no stored score; older verdicts lack a declared verdict word, which it states.
+        "verdict_consistency": judge_consistency.review(run),
         "mapping": mapping,
         "timings": progress(run),
         "retention_days": run.get("config", {}).get("retention_days", 0),

@@ -120,3 +120,68 @@ UNRESOLVED_REASON = (
     "different conclusions after one bounded correction attempt. The raw verdict is retained "
     "for review and contributes no measured score."
 )
+
+# --- reviewing verdicts that were saved before the contract ------------------------------------
+
+#: What a read-time review is, stated wherever its rows are shown. A saved Run keeps the scores
+#: it was given; this is a later observation about them, not a correction of them.
+REVIEW_NOTE = (
+    "A later review of the saved verdicts. Every score, status and reason in this Run is "
+    "unchanged. A contradiction means the Judge's own output cannot be relied on either way, so "
+    "the affected results need a human reading before they are treated as findings. Re-judging "
+    "under the current rubric would produce a separately identifiable evaluation, not an edit of "
+    "this one."
+)
+
+
+def review(run: dict) -> dict:
+    """Flag saved verdicts whose score contradicts their own explanation, without changing them.
+
+    Verdicts recorded under the direction contract carry their own ``consistency`` block and are
+    reported from it. Older verdicts have no verdict word, so only the explanation check applies;
+    that is reported honestly rather than presented as a full check.
+    """
+    from .judge_provenance import verdicts
+
+    rows, checked, contract = [], 0, 0
+    for case, slot, _result, verdict in verdicts(run):
+        score = verdict.get("score")
+        if not isinstance(score, (int, float)) or isinstance(score, bool):
+            continue
+        if not 0 <= score <= 100:
+            continue
+        checked += 1
+        saved = verdict.get("consistency")
+        if isinstance(saved, dict) and saved.get("status"):
+            contract += 1
+            status, detail = saved["status"], saved.get("detail", "")
+        else:
+            result = check(score, verdict.get("verdict"), verdict.get("reason", ""))
+            status, detail = result["status"], result["detail"]
+        if status != "contradictory":
+            continue
+        rows.append(
+            {
+                "case": case.get("id", ""),
+                "category": case.get("category", ""),
+                "bot": slot,
+                "model": verdict.get("model", "Not recorded"),
+                "score": score,
+                "detail": detail,
+                "checked_with_verdict_word": bool(saved),
+            }
+        )
+    return {
+        "scale": SCALE,
+        "verdicts_reviewed": checked,
+        "verdicts_under_contract": contract,
+        "contradictions": rows,
+        "note": REVIEW_NOTE,
+        "coverage_note": (
+            f"{contract} of {checked} saved verdicts carry a declared verdict word. The rest were "
+            "recorded before the contract, so only their explanations could be checked and a "
+            "contradiction may go unnoticed in them."
+        )
+        if checked
+        else "This Run records no numeric Judge verdict to review.",
+    }

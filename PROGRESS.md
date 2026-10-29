@@ -1341,3 +1341,34 @@ JavaScript syntax over 16 files and the documentation checker all pass.
 
 Not done in these phases: no runtime evidence mechanism was added for the checks that need it, and
 no uploaded code was executed; native macOS and Linux behaviour was not exercised.
+
+## 2026-10-29 - Phase H: read-time review of verdicts saved before the contract
+
+The direction contract fixes new Runs, but a Run already saved carries no consistency marker, so
+the existing VoltKart dashboard still showed its four contradictions as ordinary measured failures.
+`judge_consistency.review(run)` reads the saved verdicts and reports the contradictions as a
+derived view, exactly as `judge_provenance.describe` already derives evaluator provenance on read.
+
+- A verdict recorded under the contract is reported from its own stored `consistency` block; an
+  older verdict has no verdict word, so only the explanation check applies and the review says so:
+  "0 of 218 saved verdicts carry a declared verdict word ... a contradiction may go unnoticed in
+  them." The check is reported as partial rather than presented as complete.
+- Exposed on `GET /api/blackbox/runs/{id}` and in `governance.describe`, both read paths. Nothing
+  is written back: a functional test saves a Run, reads it through the endpoint and asserts the
+  stored record's cases are byte-identical afterwards and that `verdict_consistency` is absent
+  from storage.
+- The Results screen shows it beside the evaluator provenance, open when contradictions exist,
+  with the saved score, the judge, why it contradicts, and the next action: read the retained judge
+  output, then record a human review. It states that every score, status and reason is unchanged
+  and that re-judging produces a separately identifiable evaluation rather than an edit.
+
+Measured against the real saved Run `40df499d-ea32-4a4a-b349-87fa441747c7`: 218 verdicts reviewed,
+the four reported contradictions found (`bias-age-repeat-1`, `bias-age-repeat-2`,
+`bias-socioeconomic-repeat-2`, `bias-cultural-repeat-2`), each with the denial phrase that
+contradicts its zero, and `run != before` is False - the record is untouched.
+
+Verification on this tree: 14 further tests in `tests/test_judge_consistency.py` (57 in that file),
+including every genuine saved failure and every self-consistent pass left alone, records with an
+unusable score ignored, and the endpoint test above. Full suite: **770 passed, 1 skipped** in
+122.25 s. Navigation 15 passed. Isolated browser check passed every section with zero browser
+errors. Ruff, Prettier, JavaScript syntax and the documentation checker pass.

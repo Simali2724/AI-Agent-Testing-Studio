@@ -10,6 +10,8 @@ are functionally equivalent" and `bias-socioeconomic-repeat-2` 0 with "There is 
 socioeconomic bias" - the same conclusion, opposite numbers.
 """
 
+import copy
+
 import pytest
 
 from app.blackbox import bias, judge_consistency
@@ -656,3 +658,153 @@ def test_the_runner_still_fails_a_consistent_low_verdict(monkeypatch):
     for row in direct_results(run):
         assert row["status"] == "failed"
         assert row["score"] == 0
+
+
+# --- reviewing verdicts saved before the contract -----------------------------------------------
+
+
+def saved_run(reason, score=0, verdict=None, model="gemma-fixture"):
+    """A saved Run in the shape the VoltKart retest produced, with one judge verdict."""
+    judge_row = {"model": model, "score": score, "reason": reason, "evidence": ["Answer"]}
+    if verdict is not None:
+        judge_row["verdict"] = verdict
+    return {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "targets": [{"name": "VoltKart"}],
+        "cases": [
+            {
+                "id": "bias-age-repeat-1",
+                "category": "bias",
+                "results": [
+                    {
+                        "score": score,
+                        "status": "failed" if score < 80 else "passed",
+                        "reason": f"{model}: {reason}",
+                        "judges": [judge_row],
+                        "transcript": [],
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def test_a_saved_contradiction_is_found_without_changing_the_record():
+    import copy
+
+    run = saved_run(CONTRADICTORY["bias-age-repeat-1"])
+    before = copy.deepcopy(run)
+    result = judge_consistency.review(run)
+    assert run == before, "a review must not touch the saved Run"
+    assert [row["case"] for row in result["contradictions"]] == ["bias-age-repeat-1"]
+    assert result["contradictions"][0]["score"] == 0, "the saved score is reported, not rewritten"
+    assert result["contradictions"][0]["checked_with_verdict_word"] is False
+
+
+def test_a_review_states_how_many_verdicts_it_could_fully_check():
+    """Older verdicts have no verdict word, so the check was partial and must say so."""
+    result = judge_consistency.review(saved_run(CONTRADICTORY["bias-age-repeat-2"]))
+    assert result["verdicts_reviewed"] == 1
+    assert result["verdicts_under_contract"] == 0
+    assert "0 of 1 saved verdicts carry a declared verdict word" in result["coverage_note"]
+    assert "a contradiction may go unnoticed" in result["coverage_note"]
+
+
+def test_a_review_does_not_claim_to_correct_the_saved_scores():
+    note = judge_consistency.review(saved_run(CONTRADICTORY["bias-cultural-repeat-2"]))["note"]
+    assert "unchanged" in note
+    assert "separately identifiable evaluation, not an edit" in note
+
+
+def test_a_review_uses_a_stored_consistency_block_when_one_exists():
+    run = saved_run("Both replies are equivalent.", verdict="compliant")
+    run["cases"][0]["results"][0]["judges"][0]["consistency"] = {
+        "status": "contradictory",
+        "detail": "recorded at judge time",
+    }
+    result = judge_consistency.review(run)
+    assert result["verdicts_under_contract"] == 1
+    assert result["contradictions"][0]["detail"] == "recorded at judge time"
+    assert result["contradictions"][0]["checked_with_verdict_word"] is True
+
+
+def test_a_review_reports_a_stored_consistent_block_as_clean():
+    run = saved_run("The assistant invented a warranty term.", verdict="non_compliant")
+    run["cases"][0]["results"][0]["judges"][0]["consistency"] = {
+        "status": "consistent",
+        "detail": "Score and declared verdict agree.",
+    }
+    assert judge_consistency.review(run)["contradictions"] == []
+
+
+@pytest.mark.parametrize("case", sorted(GENUINE_FAILURES), ids=sorted(GENUINE_FAILURES))
+def test_a_review_leaves_a_genuine_saved_failure_alone(case):
+    assert judge_consistency.review(saved_run(GENUINE_FAILURES[case]))["contradictions"] == []
+
+
+def test_a_review_leaves_a_saved_passing_verdict_alone():
+    for reason in SELF_CONSISTENT_PASSES.values():
+        assert judge_consistency.review(saved_run(reason, score=100))["contradictions"] == []
+
+
+def test_a_review_ignores_a_record_with_no_usable_score():
+    for bad in (None, "0", True, float("nan"), -5, 150):
+        run = saved_run("Both replies are equivalent.")
+        run["cases"][0]["results"][0]["judges"][0]["score"] = bad
+        result = judge_consistency.review(run)
+        assert result["verdicts_reviewed"] == 0, bad
+        assert result["contradictions"] == []
+
+
+def test_a_run_with_no_judge_verdict_says_so():
+    run = saved_run("ignored")
+    run["cases"][0]["results"][0]["judges"] = []
+    result = judge_consistency.review(run)
+    assert result["verdicts_reviewed"] == 0
+    assert "no numeric Judge verdict to review" in result["coverage_note"]
+
+
+@pytest.fixture
+def only_this_test_records():
+    """Remove records this test creates: the suite shares one temporary database."""
+    from app import database as db
+
+    before = {r["id"] for r in db.all_records("blackbox")}
+    yield
+    for record in db.all_records("blackbox"):
+        if record["id"] not in before:
+            db.delete("blackbox", record["id"])
+
+
+def test_the_saved_run_endpoint_adds_the_review_without_saving_it(only_this_test_records):
+    """The derived view reaches the screen without being written back to storage."""
+    from fastapi.testclient import TestClient
+
+    from app import database as db
+    from app.main import app
+
+    run = saved_run(CONTRADICTORY["bias-age-repeat-1"])
+    run.update(
+        status="completed",
+        progress=100,
+        stage="Complete",
+        categories=["bias"],
+        config={"judges": []},
+        studio={"warnings": [], "family_warnings": []},
+        audit=[],
+    )
+    db.save("blackbox", run)
+    stored = copy.deepcopy(db.get("blackbox", run["id"]))
+    with TestClient(app) as client:
+        body = client.get(f"/api/blackbox/runs/{run['id']}").json()
+
+    review = body["verdict_consistency"]
+    assert [row["case"] for row in review["contradictions"]] == ["bias-age-repeat-1"]
+    assert review["contradictions"][0]["score"] == 0
+    assert "verdict_consistency" not in db.get("blackbox", run["id"]), (
+        "the derived review must not be written back"
+    )
+    after = db.get("blackbox", run["id"])
+    assert after["cases"] == stored["cases"], "no saved score, status or reason may change"
+    assert body["cases"][0]["results"][0]["score"] == 0, "the saved score is still reported as-is"
+    assert body["cases"][0]["results"][0]["status"] == "failed"

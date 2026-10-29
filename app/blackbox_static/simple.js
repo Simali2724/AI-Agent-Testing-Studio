@@ -278,7 +278,7 @@ function render(run) {
   if (!studio) {
     // Display the saved summary without converting it to the newer scoring protocol.
     $("verdict").innerHTML =
-      `<details class="subtle-details"><summary>Saved evaluation results — scoring details</summary><p>Run ${esc(run.id)} · ${esc(run.status)}. Original scoring rules are preserved. Not tested means missing evidence, not a failed answer.</p><p>${esc(run.score_formula || "Quality and coverage are reported separately.")}</p></details>${evaluatorProvenance()}`;
+      `<details class="subtle-details"><summary>Saved evaluation results — scoring details</summary><p>Run ${esc(run.id)} · ${esc(run.status)}. Original scoring rules are preserved. Not tested means missing evidence, not a failed answer.</p><p>${esc(run.score_formula || "Quality and coverage are reported separately.")}</p></details>${verdictConsistency()}${evaluatorProvenance()}`;
     $("scores").innerHTML = (run.targets || [])
       .map((target, index) => {
         const summary = run.summary?.[index];
@@ -303,7 +303,7 @@ function render(run) {
     $("relevance-charts").innerHTML = "";
   } else {
     $("verdict").innerHTML =
-      `<div class="verdict-card"><h3>${studio.winner == null ? (studio.bots.length === 1 ? "Evaluation summary" : "Comparison summary") : "Winner: " + esc(run.targets[studio.winner].name)}</h3><p>${esc(studio.confidence_note)}</p>${generalWarnings(studio).length ? `<p class="unknown">${generalWarnings(studio).map(esc).join(" ")}</p>` : ""}${familyWarnings(studio)}</div>${evaluatorProvenance()}<details class="subtle-details"><summary>How to read these scores</summary><p>${esc(studio.formula)}</p><p>Not tested is missing evidence, not a failed answer. It contributes zero to this evaluation index. Measured quality and coverage are shown separately.</p></details>`;
+      `<div class="verdict-card"><h3>${studio.winner == null ? (studio.bots.length === 1 ? "Evaluation summary" : "Comparison summary") : "Winner: " + esc(run.targets[studio.winner].name)}</h3><p>${esc(studio.confidence_note)}</p>${generalWarnings(studio).length ? `<p class="unknown">${generalWarnings(studio).map(esc).join(" ")}</p>` : ""}${familyWarnings(studio)}</div>${verdictConsistency()}${evaluatorProvenance()}<details class="subtle-details"><summary>How to read these scores</summary><p>${esc(studio.formula)}</p><p>Not tested is missing evidence, not a failed answer. It contributes zero to this evaluation index. Measured quality and coverage are shown separately.</p></details>`;
     if (studio.comparison) {
       const comparison = studio.comparison;
       $("verdict").innerHTML +=
@@ -544,6 +544,27 @@ function render(run) {
     if (state === "contradictory")
       return ` <span class="pill">${esc(window.StudioStatus.QUALIFIER.contradictory)}</span><br><small>${esc(judge.consistency.detail || "")}</small>`;
     return ` <span class="pill">${esc(window.StudioStatus.QUALIFIER.not_measured)}: no verdict word was returned, so agreement was not established</span>`;
+  }
+
+  /* Contradictions found by reading the saved verdicts. Shown for review beside the scores; no
+     stored score, status or reason is changed by it. */
+  function verdictConsistency() {
+    const info = run.verdict_consistency;
+    if (!info) return "";
+    const rows = (info.contradictions || [])
+      .map(
+        (row) =>
+          `<tr><td>${esc(row.case)}</td><td>${esc(run.targets[row.bot]?.name || "Bot " + (row.bot + 1))}</td><td>${esc(row.model)}</td><td>${esc(row.score)}</td><td>${esc(row.detail)}</td></tr>`,
+      )
+      .join("");
+    const summary = rows
+      ? `${info.contradictions.length} saved ${window.StudioStatus.QUALIFIER.contradictory.toLowerCase()} — review before relying on these results`
+      : "Saved verdict consistency review — none found";
+    return `<details class="subtle-details" id="verdict-consistency"${rows ? " open" : ""}><summary>${esc(summary)}</summary>${
+      rows
+        ? `<p class="unknown">${esc(window.StudioStatus.EXPLAIN.contradictory)}</p><table class="cal-table"><thead><tr><th>Case</th><th>Bot</th><th>Judge</th><th>Saved score</th><th>Why it contradicts</th></tr></thead><tbody>${rows}</tbody></table><p>Next action: open each case below, read the retained judge output, then record a human review. Re-judging produces a separately identifiable evaluation.</p>`
+        : `<p class="helper">No saved verdict was found whose score contradicts its own explanation.</p>`
+    }<p class="helper">${esc(info.note)} ${esc(info.coverage_note)}</p></details>`;
   }
 
   function caseEvidence(category) {
