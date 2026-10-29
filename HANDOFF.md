@@ -18,20 +18,27 @@ and `check-studio-ui.py` is committed in D: as `90cd616`. **Nothing was at risk 
 one commit behind, so `0978e48` was cherry-picked in as `3b93d74`. Both C: checkouts were left
 exactly as found — re-verify with `git status` in each before any further work.
 
-### Local commits, oldest first (nothing pushed)
+### Local commits, oldest first
+
+Rebased onto `origin/master` (`0978e48`) before publication, which dropped an earlier
+cherry-pick of that same commit as a duplicate patch. The tree is byte-identical to the
+pre-rebase branch, confirmed with `git diff`, and the branch fast-forwards from `origin/master`.
 
 | Commit    | Scope                                                                                            |
 | --------- | ------------------------------------------------------------------------------------------------ |
-| `3b93d74` | Cherry-pick of published `0978e48` (visible costs and tokens) so D: is not behind                |
-| `1aefc6e` | Phase A — Judge score direction contract and self-contradiction handling (T-039)                 |
-| `ec0e118` | Phase B — claim rules, owner reference facts and capability declarations (T-040)                 |
-| `65fc6e0` | Phase C — numeric cost-field redaction (T-041) and provider/endpoint prices (T-042)              |
-| `779563c` | Phases D/E/F — White coverage semantics (T-044), provider readiness (T-043), truthful UI (T-045) |
-| `ae81f62` | Prettier formatting of DECISIONS.md                                                              |
-| `8b1e795` | docs — T-039 to T-045 and the resolved defect rows                                               |
-| `73d8e78` | Phase H — read-time review of verdicts saved before the contract                                 |
-| `d00426a` | Phase I — claim rules joined evaluator identity; PDF parity                                      |
-| `9ab7234` | Phase J — declare facts and capabilities from the Evaluate screen                                |
+| `88288c5` | Phase A — Judge score direction contract and self-contradiction handling (T-039)                 |
+| `ad9f87a` | Phase B — claim rules, owner reference facts and capability declarations (T-040)                 |
+| `4354e9f` | Phase C — numeric cost-field redaction (T-041) and provider/endpoint prices (T-042)              |
+| `9185d8a` | Phases D/E/F — White coverage semantics (T-044), provider readiness (T-043), truthful UI (T-045) |
+| `e04b42c` | Prettier formatting of DECISIONS.md                                                              |
+| `f26cd73` | docs — T-039 to T-045 and the resolved defect rows                                               |
+| `03614b8` | Phase H — read-time review of verdicts saved before the contract                                 |
+| `3368b88` | Phase I — claim rules joined evaluator identity; PDF parity                                      |
+| `c4462e8` | Phase J — declare facts and capabilities from the Evaluate screen                                |
+| `5ae4872` | docs — this handoff and the extended T-040 entry                                                 |
+| `83450b3` | Phase K — display the panel policy, failed judges and local-fallback cost                        |
+
+A branch `backup/pre-rebase-84b788b` holds the pre-rebase tip in case the old hashes are needed.
 
 ### What to know before changing this further
 
