@@ -79,6 +79,7 @@ async def judge_request(config, send, messages, max_output_tokens=1500):
                     model=config.judge_model,
                     alias=config.judge_model_alias,
                     provider=metering.provider_from(config.judge_url),
+                    endpoint=config.judge_url,
                     messages=messages,
                     local=config.judge_local_model,
                     max_output_tokens=max_output_tokens,

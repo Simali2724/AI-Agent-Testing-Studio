@@ -1233,3 +1233,52 @@ Black-box prompt. Full suite: 665 passed, 1 skipped in 142.65 s. Ruff lint and f
 
 Not done in this phase: no saved verdict was recomputed, no scenario snapshot was edited, and no
 authoring screen for the profile exists yet - it is supplied through the Run configuration.
+
+## 2026-10-29 - Phase C: export redaction of cost fields and provider-specific prices
+
+Both defects reproduced from the saved evidence before any change.
+
+**Export redaction.** `black-results.json` contains 477 `"exact_micro_usd": "[REDACTED phone]"`
+values plus truncated ones such as `"7217.[REDACTED phone]"`. Cause: `governance.export_run` runs
+`redact()` over every string, an exact micro-USD amount is stored as `str(Decimal)`, and the generic
+phone rule matches any run of 10-15 digits. The integer micro-USD fields are untouched, so precision
+was lost rather than the headline totals. Fix: `NUMERIC_COST_FIELDS` plus a `PLAIN_AMOUNT` shape
+test, gated on the field name **and** the value shape, following the existing
+`preserve_typed_identifiers` precedent in `app/assurance/privacy.py`. A telephone number parked in
+`exact_micro_usd`, an amount written with spaces, brackets or a country code, and the same digits in
+any other field are all still redacted. The export now discloses the exemption under
+`numeric_field_exemptions`. Verified by replaying every amount shape found in the saved export,
+including the `0E-12` exponent form: zero redaction markers remain.
+
+**Provider-specific prices.** `pricing.price_for` keyed on model name alone, so one provider's
+published rate would be applied to any host serving a model of that name. Resolution is now, most
+specific first: a rate keyed to the exact endpoint identity, then one keyed to the provider, then
+the plain catalogue entry - and the plain entry is **withheld** when it names a provider that does
+not match the call, so the price stays Unknown instead of being taken from another host. An owner's
+explicit override always applies, because pricing their own endpoint is their decision. Catalogue
+rows that name no provider still apply, so known costs are not hidden. `openai-compatible` is
+treated as "host not identified" rather than a provider identity, which is exactly the hosted-Gemma
+case. `provider` and `endpoint` now flow from the judge, connector and adapter call sites through
+`Meter.call` into the lookup, and `estimate()` and `prices_used` resolve the same way so a planning
+estimate cannot promise a price metering will report as Unknown.
+
+**Verified Gemma price.** Checked https://ai.google.dev/gemini-api/docs/pricing on 29 October 2026
+(page last updated 2026-10-28): Gemma 4 input and output are "Free of charge" on the Gemini
+Developer API **free tier** and "Not available" on the paid tier, so a paid-tier account has no
+published rate and its billing stays Unknown. The entry lives in the editable
+`app/studio/verified-prices.json`, keyed
+`gemma-4-26b-a4b-it@https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` with
+source and date, so it applies only on Google's own endpoint and returns Unknown on any third-party
+host. No rate was hardcoded in evaluation code. `pin()` merges verified prices below an owner's
+overrides and labels the snapshot source; the active catalogue snapshot is not rewritten, and an
+already pinned snapshot is returned untouched, so the saved VoltKart totals are unchanged.
+
+Verification on this tree: `tests/test_cost_provenance.py` 53 new tests pass, including every saved
+amount shape, the exemption-is-not-a-bypass cases, a self-checking test that every `*_micro_usd`
+field `cost_summary` produces is classified, Google-versus-third-party Gemma, cross-provider name
+collisions, Azure/OpenAI family equivalence, unknown-is-not-free, endpoint identity excluding
+credentials and query, and override precedence. Full suite: 718 passed, 1 skipped in 143.81 s. Ruff
+lint and format, Prettier and the docs checker pass.
+
+Not done in this phase: saved runs keep their original snapshots and totals; no reconciliation of
+historical costs was performed, and none is implied.

@@ -461,3 +461,29 @@ The claim rules are part of the rubric fingerprint. Supplying or editing a profi
 separately identifiable evaluation rather than a silent correction of an earlier one, and
 invalidates a calibration recorded without it. Each Run records the rules version and the profile's
 provenance; a Run without a profile records that absence rather than implying full knowledge.
+
+## Prices are keyed to the endpoint that billed them
+
+A rate belongs to a provider and an endpoint, not to a model name. `pricing.price_for` resolves
+most specific first - a rate keyed `<model>@<endpoint identity>`, then `<provider>/<model>`, then
+the plain catalogue entry - and withholds a plain entry whose recorded provider does not match the
+call. An unresolved price stays Unknown; it is never filled in from another host's published rate.
+`openai-compatible` means the host was not identified, so it never matches a specific provider.
+
+An owner's explicit override always applies, since pricing their own endpoint is their decision, and
+may carry `source`, `source_date`, `provider`, `endpoint` and `note` metadata. Hand-checked rates
+live in the editable `app/studio/verified-prices.json` and are merged below those overrides; no rate
+is written into evaluation code. Editing either does not touch a saved snapshot: a Run keeps the
+snapshot it was pinned to, and any later reconciliation must be labelled and audited rather than
+replacing historical totals.
+
+## Typed numeric fields are exempt from the generic number rule
+
+An exact micro-USD amount is a decimal string, and the generic redaction rule masks any run of
+10-15 digits, so an export turned 477 saved cost values into "[REDACTED phone]". The exemption in
+`governance.NUMERIC_COST_FIELDS` is gated on an exact field name **and** a bare-number value shape,
+matching the existing `preserve_typed_identifiers` precedent for trace metadata. A contact detail
+stored in one of those fields, an amount written with separators, and the same digits in any other
+field remain redacted, and the export states the exemption and its limits. A new monetary field must
+be classified deliberately: a test fails if `cost_summary` produces a `*_micro_usd` name the
+allowlist does not cover.
