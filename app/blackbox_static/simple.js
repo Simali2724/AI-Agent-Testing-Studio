@@ -157,6 +157,7 @@ function configuration() {
       ]),
     ),
     references: JSON.parse($("references").value || "[]"),
+    reference_profile: declaredProfile(),
     policy: $("policy").value,
     scope: $("scope").value,
     ...settings.execution,
@@ -191,6 +192,31 @@ function bar(value, max) {
    reports. An externally resumed Run (a recovery script, or a second window) changes the list
    while the loaded snapshot keeps its old status, and the fast heartbeat below only polls while
    the loaded status is active. */
+/* The owner's declared facts and capabilities, or null when nothing was declared. Each line is
+   one declaration; the backend refuses a source-derived declaration without the approval box. */
+function declaredLines(id) {
+  return ($(id).value || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+function declaredProfile() {
+  const facts = declaredLines("declared-facts");
+  const capabilities = declaredLines("declared-capabilities");
+  if (!facts.length && !capabilities.length) return null;
+  const fromSource = $("declared-from-source").checked;
+  return {
+    general_facts: facts,
+    capabilities,
+    provenance: {
+      supplied_by: $("declared-by").value.trim() || "Not stated",
+      supplied_at: new Date().toISOString(),
+      source: $("declared-source").value.trim() || "Not stated",
+      source_derived: fromSource,
+      owner_approved: fromSource,
+    },
+  };
+}
 function staleAgainstHistory(runs, id, loaded) {
   if (!id || !loaded || loaded.id !== id) return false;
   const listed = (runs || []).find((r) => r && r.id === id);
@@ -234,6 +260,12 @@ function render(run) {
     $("policy").value = run.config.policy;
     $("scope").value = run.config.scope;
     $("references").value = JSON.stringify(run.config.references || []);
+    const declared = run.config.reference_profile;
+    $("declared-facts").value = (declared?.general_facts || []).join("\n");
+    $("declared-capabilities").value = (declared?.capabilities || []).join("\n");
+    $("declared-by").value = declared?.provenance?.supplied_by || "";
+    $("declared-source").value = declared?.provenance?.source || "";
+    $("declared-from-source").checked = Boolean(declared?.provenance?.source_derived);
     hydrateRequested = false;
     planned();
   }

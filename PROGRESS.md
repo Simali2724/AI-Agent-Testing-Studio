@@ -1413,3 +1413,39 @@ Note for the owner: because evaluator identity now includes the direction contra
 rules, any calibration recorded earlier reports as **stale** rather than aligned. No real
 human-labelled sample exists yet, so nothing measured was lost; collecting labels under the current
 rubric remains the outstanding external prerequisite.
+
+## 2026-10-29 - Phase J: declaring reference facts and capabilities from the screen
+
+Phase B implemented the declaration but left it reachable only through the Run configuration. It
+is now authored in **Advanced settings** on the existing Evaluate screen, rather than on a new
+page: two line-per-item boxes for true general policies and for capabilities the bot really has,
+who is declaring it, where it came from, and one checkbox reading "This came from reading the
+bot's own source code, and I approve sending it to the Judge" - a single control that records both
+the source derivation and the approval it requires.
+
+The screen states what a declaration is and is not: without it a Judge reports a general policy or
+an offered capability as unverified rather than as a fault; a claim about an unsupported identifier
+still fails either way; a declaration records what the owner says is true and is not an independent
+check; a declared capability does not show that its authorization is sufficient; and Black-box
+testing never reads the bot's source, which is why a source-derived declaration needs the box.
+
+- `declaredProfile()` returns `null` when nothing was declared, so an empty form sends no profile
+  and the unverified-not-invented rules stay in force. Blank lines never become declarations, and
+  an unstated supplier or source reads "Not stated" rather than being invented.
+- Reusing a saved Run's settings restores its declaration, including the checkbox, so a rerun is
+  judged under the same rules.
+- Validation stays at the API boundary, not in the screen: a source-derived declaration without
+  approval is refused by `Settings` itself, and an empty supplier or source is rejected.
+
+Verification on this tree: 2 new navigation tests (17 in that file) covering empty, partial and
+full declarations, whitespace handling and the approval checkbox, plus 6 new API-boundary tests
+(33 in `tests/test_reference_profile.py`). Full suite: **793 passed, 1 skipped** in 138.91 s.
+Isolated browser check passed every section with zero browser errors. Measured contrast: **44
+pairs, 0 failing, 0 skipped** - the new legend is one more measured pair than before and passes.
+Ruff, Prettier, JavaScript syntax and the documentation checker pass.
+
+Two test-harness notes for the next person. The navigation harness runs script slices in a `vm`
+realm, so an array built there has a different prototype and `assert.deepEqual` from
+`node:assert/strict` rejects it even when the contents match: copy with `Array.from` first. And
+Prettier reflows prose in `simple.html`, so a markup assertion should collapse whitespace rather
+than match across line breaks.

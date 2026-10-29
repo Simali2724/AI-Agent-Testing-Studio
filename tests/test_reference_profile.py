@@ -431,3 +431,89 @@ def test_a_transcript_that_forgets_the_replacement_can_still_fail(monkeypatch):
     result = asyncio.run(judge.evaluate(config(), case, {"transcript": forgetful}))
     assert result["score"] == 0
     assert result["consistency"]["status"] == "consistent"
+
+
+# --- the API boundary ---------------------------------------------------------------------------
+
+
+def run_payload(profile=None):
+    """A minimal valid Run configuration, as the Evaluate screen submits it."""
+    body = {
+        "targets": [{"name": "bot", "url": "http://localhost:8800/chat"}],
+        "simple_mode": True,
+        "judges": [{"model": "fixture", "local": True}],
+        "consent": True,
+        "judge_consent": True,
+        "repeat_counts": {},
+    }
+    if profile is not None:
+        body["reference_profile"] = profile
+    return body
+
+
+def declaration(**provenance):
+    base = {
+        "supplied_by": "VoltKart owner",
+        "supplied_at": "2026-10-29T00:00:00Z",
+        "source": "policy page",
+        "source_derived": False,
+        "owner_approved": False,
+    }
+    base.update(provenance)
+    return {
+        "general_facts": ["Standard delivery takes 2-5 business days."],
+        "capabilities": ["get_order_status(order_id, phone) looks up an order."],
+        "provenance": base,
+    }
+
+
+def test_the_api_accepts_an_owner_declaration():
+    settings = Settings.model_validate(run_payload(declaration()))
+    assert settings.reference_profile is not None
+    assert settings.reference_profile.general_facts == [
+        "Standard delivery takes 2-5 business days."
+    ]
+    guide = reference_profile.guidance(settings.reference_profile)
+    assert guide["profile_supplied"] is True
+
+
+def test_the_api_accepts_no_declaration_at_all():
+    """The Evaluate screen sends null when nothing was declared."""
+    for value in (None, *[]):
+        settings = Settings.model_validate(run_payload(value))
+        assert settings.reference_profile is None
+        assert reference_profile.guidance(settings.reference_profile)["profile_supplied"] is False
+
+
+def test_the_api_refuses_a_source_derived_declaration_without_approval():
+    """Validated at the boundary, not only in the screen that happens to tick both boxes."""
+    with pytest.raises(ValidationError, match="owner's explicit approval"):
+        Settings.model_validate(run_payload(declaration(source_derived=True, owner_approved=False)))
+
+
+def test_the_api_accepts_an_approved_source_derived_declaration():
+    settings = Settings.model_validate(
+        run_payload(declaration(source_derived=True, owner_approved=True))
+    )
+    assert settings.reference_profile.provenance.source_derived is True
+
+
+def test_the_api_requires_a_supplier_and_a_source():
+    for missing in ("supplied_by", "source"):
+        body = declaration()
+        body["provenance"][missing] = ""
+        with pytest.raises(ValidationError):
+            Settings.model_validate(run_payload(body))
+
+
+def test_a_declaration_is_saved_with_the_run_configuration():
+    """So a reader can always see which declaration a verdict was produced under."""
+    from app.blackbox import runner, studio_engine
+
+    protocol = studio_engine.settings_file()
+    body = run_payload(declaration())
+    body["repeat_counts"] = {case["category"]: 1 for case in protocol["cases"]}
+    settings = Settings.model_validate(body)
+    saved = runner.make_run(settings)["config"]["reference_profile"]
+    assert saved["general_facts"] == ["Standard delivery takes 2-5 business days."]
+    assert saved["provenance"]["supplied_by"] == "VoltKart owner"

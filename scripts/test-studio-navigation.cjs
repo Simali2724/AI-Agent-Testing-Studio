@@ -452,3 +452,80 @@ test("an untested category is not presented as a demonstrated weakness", () => {
   );
   assert.match(simple, /Not tested \(no measurement, not a weakness\)/);
 });
+
+test("declared facts and capabilities are assembled only when something was declared", () => {
+  const simple = readFileSync(path.join(repo, "app/blackbox_static/simple.js"), "utf8");
+  const fields = {
+    "declared-facts": { value: "" },
+    "declared-capabilities": { value: "" },
+    "declared-by": { value: "" },
+    "declared-source": { value: "" },
+    "declared-from-source": { checked: false },
+  };
+  const context = vm.createContext({ $: (id) => fields[id], Date });
+  vm.runInContext(
+    simple.slice(
+      simple.indexOf("function declaredLines("),
+      simple.indexOf("function staleAgainstHistory("),
+    ),
+    context,
+  );
+  const profile = () => vm.runInContext("declaredProfile()", context);
+
+  assert.equal(profile(), null, "nothing declared must send no profile at all");
+
+  fields["declared-facts"].value =
+    "  Standard delivery takes 2-5 business days.  \n\n Electronics carry the warranty. \n";
+  let built = profile();
+  /* Array.from copies into this realm: a vm array has a different prototype, which
+     strict deep-equality rejects even when the contents match. */
+  assert.deepEqual(Array.from(built.general_facts), [
+    "Standard delivery takes 2-5 business days.",
+    "Electronics carry the warranty.",
+  ]);
+  assert.deepEqual(Array.from(built.capabilities), [], "blank lines must not become declarations");
+  assert.equal(built.provenance.supplied_by, "Not stated", "an unstated field is not invented");
+  assert.equal(built.provenance.source_derived, false);
+  assert.equal(built.provenance.owner_approved, false);
+
+  fields["declared-capabilities"].value = "get_order_status(order_id, phone) looks up an order.";
+  fields["declared-by"].value = "  VoltKart owner  ";
+  fields["declared-source"].value = "policy page";
+  fields["declared-from-source"].checked = true;
+  built = profile();
+  assert.deepEqual(Array.from(built.capabilities), [
+    "get_order_status(order_id, phone) looks up an order.",
+  ]);
+  assert.equal(built.provenance.supplied_by, "VoltKart owner");
+  assert.equal(built.provenance.source, "policy page");
+  assert.equal(
+    built.provenance.source_derived,
+    true,
+    "the one checkbox records both that it came from source and that it was approved",
+  );
+  assert.equal(built.provenance.owner_approved, true);
+
+  fields["declared-facts"].value = "";
+  fields["declared-capabilities"].value = "";
+  assert.equal(profile(), null, "clearing both fields removes the declaration again");
+});
+
+test("the declaration inputs explain what a declaration is and is not", () => {
+  const markup = readFileSync(path.join(repo, "app/blackbox_static/simple.html"), "utf8");
+  for (const id of ["declared-facts", "declared-capabilities", "declared-from-source"]) {
+    assert.match(markup, new RegExp('id="' + id + '"'), id + " input is missing");
+  }
+  /* Collapse whitespace so the formatter may reflow this prose without breaking the test. */
+  const prose = markup.replace(/\s+/g, " ");
+  const required = [
+    "reports a general policy statement or an offered capability as unverified rather than as a fault",
+    "A claim about an unsupported identifier still fails either way",
+    "it is not an independent check",
+    "a declared capability does not show that its authorization is sufficient",
+    "Black-box testing never reads your bot's source",
+    "source observations otherwise belong to White-box or Gray-box review",
+  ];
+  for (const phrase of required) {
+    assert.ok(prose.includes(phrase), "the screen must say: " + phrase);
+  }
+});
