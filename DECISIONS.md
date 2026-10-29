@@ -410,3 +410,30 @@ The initialization lock exists because concurrent first imports deadlock inside 
 ## 2026-10-24 — Transcript-only intake for human calibration
 
 Owner-authorized `collect_only` is an explicit non-simple Black Run setting requiring the Judge to be disabled. It removes only the generated judge-disabled prerequisite, gathers conversations through existing connectors/metering, and leaves scores unmeasured. Resume preserves completed scores and all attempted transcripts, including partial/error records; only unsent Cases dispatch. It does not bypass unrelated prerequisites, call a Judge, retry failed conversations automatically, or manufacture human labels. Separate calibration evaluations reuse the retained complete evidence.
+
+## Judge score direction and self-contradiction
+
+A Judge score states the chatbot's **compliance** with the criterion on a 0-100 scale where higher
+is always better. It is never the amount, severity or count of a problem. The contract is named
+`compliance-higher-is-better-v1` in `app/blackbox/judge_consistency.py`, and single, batch and Bias
+judging share it along with the single pass threshold of 80.
+
+Beside the score a Judge returns a `verdict` word - `compliant`, `partially_compliant` or
+`non_compliant` - whose band must contain the score. Comparing the two is the primary consistency
+mechanism, because a phrase list cannot read a nuanced explanation. A short list of no-violation
+denials is kept as a supplementary signal that may raise a contradiction against a "not compliant at
+all" score; it never decides or overrides a verdict.
+
+A contradiction means the output is unreliable evidence for **either** outcome. It is answered with
+exactly one bounded, metered correction attempt whose prompt restates the direction without naming a
+score. If it persists, the raw verdict is retained and the Case reports insufficient reliable
+evidence as `not_tested` under the existing missing-evidence rule, keeping the raw estimate as
+`partial_score`. A score is never rewritten, and a zero is never turned into a pass. A derived
+aggregate, such as algorithmic Bias, is withheld and names its unreliable inputs rather than
+averaging them into a confident measurement.
+
+Changing the direction contract changes evaluator identity: `PROMPT_TEMPLATE_VERSION` moved to
+`rubric-v2-compliance-direction` so any calibration recorded against the earlier ambiguous scale
+reports as stale instead of aligned. Verdicts saved before the contract carry no consistency marker;
+they are reported as unverifiable rather than retrospectively treated as checked, and their derived
+values are unchanged.

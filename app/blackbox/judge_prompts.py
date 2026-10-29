@@ -17,7 +17,8 @@ def request_body(config, payload: dict, pair: bool = False) -> tuple[dict, list[
     schema = (
         '{"winner":"A|B|tie","reason":"brief explanation","evidence_ids":[0]}'
         if pair
-        else '{"score":0,"reason":"brief explanation","evidence_ids":[0]}'
+        else '{"score":0,"verdict":"compliant|partially_compliant|non_compliant",'
+        '"reason":"brief explanation","evidence_ids":[0]}'
     )
     body = {
         "model": config.judge_model,
@@ -53,7 +54,7 @@ def request_body(config, payload: dict, pair: bool = False) -> tuple[dict, list[
 # Fingerprints are derived from the same builder and source that execute a request, so editing
 # prompt text or evidence-validation code invalidates calibration even if nobody bumps a label.
 
-PROMPT_TEMPLATE_VERSION = "rubric-v1"
+PROMPT_TEMPLATE_VERSION = "rubric-v2-compliance-direction"
 _PROBE = {"category": "probe", "criterion": "probe", "transcript": [{"output": "probe output"}]}
 _PAIR_PROBE = {
     "category": "probe",

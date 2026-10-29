@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .. import database as db
-from . import metering, pricing
+from . import judge_consistency, metering, pricing
 from .catalog import build_cases
 from .connectors import Connector, safe_error
 from .cost_summary import summarize
@@ -583,6 +583,15 @@ class EvaluationExecutor:
                     partial_score=judged["score"],
                     reason="Some requested judges were unavailable; remaining valid estimates are retained for review. "
                     + judged["reason"],
+                )
+            if self.config.simple_mode and judged.get("consistency_status") == "contradictory":
+                # No judge on the panel produced a self-consistent verdict. The raw output is
+                # retained in `judges`; the Case contributes no measured score.
+                case["results"][i].update(
+                    status="not_tested",
+                    score=None,
+                    partial_score=judged["score"],
+                    reason=judge_consistency.UNRESOLVED_REASON + " " + judged["reason"],
                 )
             if judged.get("budget_stop"):
                 raise metering.BudgetLimit(judged["budget_stop"])

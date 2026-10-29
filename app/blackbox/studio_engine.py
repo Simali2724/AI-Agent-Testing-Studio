@@ -192,6 +192,7 @@ def provenance(candidate: JudgeSelection, requested: JudgeSelection, earlier: li
 
 
 async def panel(config: Settings, case: dict, observation: dict) -> dict:
+    from . import judge_prompts
     from .bias import ordered_observation, signals
     from .connectors import safe_error
     from .deterministic import evaluate_exact
@@ -281,7 +282,7 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
                     model=candidate.model,
                     score=verdict["score"],
                     provider_model=verdict.get("provider_model", "revision unavailable"),
-                    prompt_version="rubric-v1",
+                    prompt_version=judge_prompts.PROMPT_TEMPLATE_VERSION,
                     temperature=0,
                 )
                 if index:
@@ -339,7 +340,15 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
             "No selected judge produced valid evidence. "
             + "; ".join(f["model"] + ": " + f["reason"] for f in failures)
         )
-    score = statistics.mean(v["score"] for v in verdicts)
+    # A verdict whose score contradicts its own explanation is unreliable evidence for either
+    # outcome, so it is withheld from the mean and reported instead of silently averaged in.
+    contradictions = [
+        {"model": v["model"], "detail": v["consistency"]["detail"]}
+        for v in verdicts
+        if v.get("consistency", {}).get("status") == "contradictory"
+    ]
+    reliable = [v for v in verdicts if v.get("consistency", {}).get("status") != "contradictory"]
+    score = statistics.mean(v["score"] for v in (reliable or verdicts))
     return {
         "screening": metrics,
         "local_classifier": local,
@@ -349,8 +358,16 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
         "evidence": [quote for v in verdicts for quote in v.get("evidence", [])],
         "estimated": True,
         "needs_review": any(v.get("needs_review", False) for v in verdicts)
-        or len({v["score"] >= 80 for v in verdicts}) > 1,
+        or len({v["score"] >= 80 for v in verdicts}) > 1
+        or bool(contradictions),
         "panel_complete": len(verdicts) == len(primary),
+        "consistency_status": "contradictory"
+        if contradictions and not reliable
+        else "mixed"
+        if contradictions
+        else "checked",
+        "contradictions": contradictions,
+        "reliable_judges": len(reliable),
         "judges": verdicts,
         "judge_failures": failures,
         "agreement": len({v["score"] >= 80 for v in verdicts}) == 1
