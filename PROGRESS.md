@@ -1282,3 +1282,62 @@ lint and format, Prettier and the docs checker pass.
 
 Not done in this phase: saved runs keep their original snapshots and totals; no reconciliation of
 historical costs was performed, and none is implied.
+
+## 2026-10-29 - Phases D, E, F: White coverage semantics, provider readiness, truthful UI
+
+**Phase D - White-box coverage semantics (section 5).** Most of this section was already
+implemented by the October evidence-readiness work: `evidence_status` already separated
+planned/processed/measured/passed/failed/declarations/unverified with a cause, `owner_action` and
+`next_test` per check, dependency `0.0.0` was already `unresolved` and Not tested, and
+"absence is not proven" was already stated. Two real gaps remained.
+
+- `scanner_state()` reports tool, version, engine status and whether the scanner executed, **per
+  check**, separately from the check outcome. On the saved VoltKart record every scanner shows
+  `executed: true` while eleven checks remain `not_tested`, with the note that a completed scanner
+  with no supported target, or with no rule for that control, is not a pass.
+- `coverage_statement()` says plainly what the passes establish. Against the saved record it reads
+  "3 of 14 checks passed and 11 produced no evidence ... the passes do not add up to a secure
+  application", names what a pass actually means (one tool's rules, at a recorded version, on the
+  uploaded source, not the running application), and lists five things not established, including
+  that an unresolved dependency version is unverified and never a confirmed installed vulnerable
+  version. The teammate Markdown export carries the statement. Neither function mutates the run.
+
+**Phase E - provider readiness (section 6).** `app/blackbox/provider_status.py` classifies a
+failure into `billing_exhausted`, `quota_exhausted`, `authentication_failed`, `model_unavailable`,
+`rate_limited`, `invalid_verdict`, `transport_error` or `unclassified`, each with a label, an owner
+action and whether waiting can help. An unfamiliar condition is **not** assumed transient. The
+judge panel records the classification on every failure, and `mark_unavailable` now takes its long
+cooldown from that classification instead of matching the words "quota", "balance", "401" or "403"
+in a message. OpenAI's exhausted balance arrives as HTTP 429 and is correctly separated from a
+plain rate limit. Model discovery now answers `readiness: "discoverable"` with the note that a
+listing shows what an account can enumerate, not what it can call, and that inference readiness is
+only established by a successful metered request returning a valid verdict. Each Run states its
+`judge_policy`: the requested judges, the declared fallbacks, and the rules - every requested judge
+is attempted and never removed to make a panel look complete, a failed judge may be replaced only
+by an explicitly selected or installed local model with no download, the target chatbot's model is
+never changed because its Judge failed, and a mixed panel is reported as mixed. Retry guidance was
+already honoured through `scheduling.retry_delay`, which reads `Retry-After`.
+
+**Phase F - truthful UI (section 8).** The stale-result defect was reproduced in code rather than
+guessed: the 2.5 s heartbeat in `simple.js` gates on the **loaded** `current.status`, and
+`loadHistory()` ran only at boot or on an explicit Refresh, so a Run resumed outside the page showed
+its new status in the list while the selected detail kept the old snapshot until Refresh was
+pressed. `staleAgainstHistory()` now compares the two and re-reads the detail, and a 10 s list
+refresh runs only while the loaded result looks finished, so a completed run is never polled every
+few seconds. A contradicted verdict is labelled where the evidence is read, with the retained judge
+output and a next action; a per-judge badge shows which panel member contradicted itself or
+returned no verdict word. Category summaries now read "N processed · N scored · N passed · N Not
+tested" with a contradiction count when present. "Lowest category scores" became "Lowest **measured**
+category scores" and untested categories are listed separately as "Not tested (no measurement, not
+a weakness)" - previously an unmeasured category sorted into the weakest three by its zero index
+contribution. All new wording comes from `status-labels.js`, keeping one source of status words.
+
+Verification on this tree: `tests/test_provider_readiness.py` 29 new tests, eight new coverage and
+scanner-status tests in `tests/test_evidence_readiness.py`, and three new navigation tests
+(externally resumed run, heartbeat division, untested-category wording). Full suite: **756 passed,
+1 skipped** in 143.50 s. Navigation 15 passed. Isolated browser check passed every section
+including mobile layout with **zero browser errors**. Ruff lint and format over 116 files, Prettier,
+JavaScript syntax over 16 files and the documentation checker all pass.
+
+Not done in these phases: no runtime evidence mechanism was added for the checks that need it, and
+no uploaded code was executed; native macOS and Linux behaviour was not exercised.

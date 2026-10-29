@@ -487,3 +487,44 @@ stored in one of those fields, an amount written with separators, and the same d
 field remain redacted, and the export states the exemption and its limits. A new monetary field must
 be classified deliberately: a test fails if `cost_summary` produces a `*_micro_usd` name the
 allowlist does not cover.
+
+## A provider failure is classified before it is retried or reported
+
+`app/blackbox/provider_status.py` names the condition behind a failed provider call: exhausted
+billing, an exhausted daily quota, rejected authentication, a model the account cannot call, a
+transient rate limit, an unusable verdict, a transport failure, or unclassified. Each state carries
+the owner action it implies and whether waiting can resolve it, and an unfamiliar condition is not
+assumed transient. The long judge cooldown follows that classification rather than matching words
+in an error message, and an account or billing problem is never reported as a chatbot defect.
+
+Model discovery is not inference readiness. A listing shows what an account can enumerate; only a
+successful metered request returning a valid verdict establishes that judging works. The discovery
+endpoint reports `readiness: "discoverable"` and says so.
+
+Every Run states its judge panel policy rather than leaving it to be inferred from which judges
+appear in the results: each requested judge is attempted and never removed to make a panel look
+complete, a failed judge may be replaced only by an explicitly selected or already installed local
+model with no download, the target chatbot's model is never changed because its Judge failed, and a
+mixed panel is reported as mixed because judges are not interchangeable.
+
+## Execution status, coverage and weakness are reported apart
+
+A scanner finishing is not a result. Each White-box check reports its tool, version and whether the
+scanner executed, separately from the check outcome, and states that a completed scanner with no
+supported target or no rule for the control is not a pass. Alongside the counts, a coverage
+statement says what the passes do and do not establish: one tool's rules, at a recorded version, on
+the uploaded source - not the running application, not the effectiveness of a declared control, and
+not the absence of a weakness no rule covers.
+
+In the Black-box results, only **measured** categories may be ranked as the lowest scoring.
+Missing evidence contributes zero to the index, so an untested category previously sorted into the
+weakest three and read as a demonstrated weakness; untested categories are now listed separately
+and labelled as having no measurement.
+
+## The selected result is reconciled against the history list
+
+A Run resumed or stopped outside the page changes the history list while the loaded detail keeps its
+old snapshot, and the fast heartbeat only polls while the *loaded* status is active. The two are now
+compared, and a disagreement re-reads the detail; a slower list refresh runs only while the loaded
+result looks finished, so a completed Run is never polled every few seconds. This was diagnosed from
+the polling code rather than inferred from the symptom.

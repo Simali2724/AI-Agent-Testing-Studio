@@ -187,6 +187,15 @@ function table(head, rows) {
 function bar(value, max) {
   return `<div class="bar-track"><div class="bar" style="width:${Math.min(100, Math.max(0, (Number(value) / Math.max(1, max)) * 100))}%"></div></div>`;
 }
+/* Whether the loaded detail for the selected run disagrees with the status the history list
+   reports. An externally resumed Run (a recovery script, or a second window) changes the list
+   while the loaded snapshot keeps its old status, and the fast heartbeat below only polls while
+   the loaded status is active. */
+function staleAgainstHistory(runs, id, loaded) {
+  if (!id || !loaded || loaded.id !== id) return false;
+  const listed = (runs || []).find((r) => r && r.id === id);
+  return Boolean(listed && listed.status !== loaded.status);
+}
 function render(run) {
   current = run;
   window.StudioUI.updateRun(run);
@@ -329,13 +338,25 @@ function render(run) {
       `<div class="grid">${studio.bots
         .map(
           (b) =>
-            `<article class="metric"><h3>${esc(b.name)}</h3><span class="pill">${b.tested === b.planned ? "Fully scored" : "Partial coverage"}</span><p class="muted">Overall score</p><div class="score">${b.score}<small>/100</small></div><p><strong>${b.tested}/${b.planned}</strong> outcomes scored · ${b.planned ? Math.round((100 * b.tested) / b.planned) : 0}% coverage</p><p>Strongest measured check: ${esc([...b.categories].filter((c) => c.tested).sort((a, z) => z.quality - a.quality)[0]?.name || "Not established")}<br>Lowest category scores: ${esc(
+            `<article class="metric"><h3>${esc(b.name)}</h3><span class="pill">${b.tested === b.planned ? "Fully scored" : "Partial coverage"}</span><p class="muted">Overall score</p><div class="score">${b.score}<small>/100</small></div><p><strong>${b.tested}/${b.planned}</strong> outcomes scored · ${b.planned ? Math.round((100 * b.tested) / b.planned) : 0}% coverage</p><p>Strongest measured check: ${esc([...b.categories].filter((c) => c.tested).sort((a, z) => z.quality - a.quality)[0]?.name || "Not established")}<br>Lowest measured category scores: ${esc(
               [...b.categories]
+                .filter((c) => c.tested)
                 .sort((a, z) => a.score - z.score)
                 .slice(0, 3)
                 .map((c) => c.name)
-                .join(", "),
-            )}</p>${bar(b.score, 100)}</article>`,
+                .join(", ") || "None measured",
+            )}${
+              /* An unmeasured category has no score to be lowest. Listing it beside the weakest
+                 measured ones would present missing evidence as a demonstrated weakness. */
+              [...b.categories].some((c) => !c.tested)
+                ? `<br><span class="muted">Not tested (no measurement, not a weakness): ${esc(
+                    [...b.categories]
+                      .filter((c) => !c.tested)
+                      .map((c) => c.name)
+                      .join(", "),
+                  )}</span>`
+                : ""
+            }</p>${bar(b.score, 100)}</article>`,
         )
         .join("")}</div>` +
       '<h3 class="chart-heading">Scores by category</h3>' +
@@ -497,6 +518,34 @@ function render(run) {
     return `<details class="subtle-details" id="evaluator-provenance"><summary>Which judge scored these cases</summary>${mixed}${unavailable}${rows ? `<table class="cal-table"><thead><tr><th>Actual evaluator</th><th>Requested</th><th>Provider</th><th>Returned identifier</th><th>Fallback</th><th>Human calibration</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="helper">No LLM judge verdict is recorded for this test.</p>`}${engines ? `<ul>${engines}</ul>` : ""}<p class="helper">${esc(info.revision_note)} ${esc(info.calibration_note)}</p></details>`;
   }
 
+  /* A score that contradicts its own explanation is unreliable evidence for either outcome, so
+     it is named where the evidence is read rather than left to look like a measured failure. */
+  function consistencyNotice(result) {
+    const rows = result.contradictions || [];
+    if (result.consistency_status !== "contradictory" && !rows.length) return "";
+    const label =
+      result.consistency_status === "contradictory"
+        ? window.StudioStatus.QUALIFIER.contradictory
+        : window.StudioStatus.QUALIFIER.mixed_panel;
+    const explain =
+      result.consistency_status === "contradictory"
+        ? window.StudioStatus.EXPLAIN.contradictory
+        : window.StudioStatus.EXPLAIN.mixed_panel;
+    const detail = rows.map((row) => `${row.model}: ${row.detail}`).join(" ");
+    return `<p class="unknown"><strong>${esc(label)}</strong> ${esc(explain)}${
+      detail ? " " + esc(detail) : ""
+    } Next action: read the retained judge output below, then record a human review.</p>`;
+  }
+
+  /* Per-judge consistency, so a mixed panel shows which member contradicted itself. */
+  function judgeConsistency(judge) {
+    const state = judge.consistency?.status;
+    if (!state || state === "consistent") return "";
+    if (state === "contradictory")
+      return ` <span class="pill">${esc(window.StudioStatus.QUALIFIER.contradictory)}</span><br><small>${esc(judge.consistency.detail || "")}</small>`;
+    return ` <span class="pill">${esc(window.StudioStatus.QUALIFIER.not_measured)}: no verdict word was returned, so agreement was not established</span>`;
+  }
+
   function caseEvidence(category) {
     return run.cases
       .filter((c) => c.category === category)
@@ -505,7 +554,7 @@ function render(run) {
           `<div class="case-evidence"><h4>${esc(c.name)} · case ${c.scenario_index || 1}, repeat ${c.repeat ?? 1}</h4><div class="grid">${c.results
             .map(
               (r, i) =>
-                `<article><strong>${esc(run.targets[i].name)} <span class="pill">${esc(window.StudioStatus.label(r.status))}</span></strong><p>Score: ${r.score == null ? `${window.StudioStatus.RESULT.not_tested}${studio ? " (index contribution 0)" : " (excluded from measured quality)"}` : r.score + "/100"}</p><p>${r.human_review_note ? "<strong class=badge>Overridden — reason logged</strong> " : ""}${r.needs_review ? `<strong>${esc(window.StudioStatus.QUALIFIER.needs_review)}</strong> ` : ""}${esc(r.reason)}</p>${(r.judges || []).map((j) => `<p class="judge-reason">Judge: ${esc(j.model)} — ${j.score}%<br>Evidence: ${j.evidence.map(esc).join(" | ")}${judgeProvenance(j)}</p>`).join("")}${nonJudgeEngine(r)}${window.renderEvidenceDetails(c, r)}${r.transcript
+                `<article><strong>${esc(run.targets[i].name)} <span class="pill">${esc(window.StudioStatus.label(r.status))}</span></strong><p>Score: ${r.score == null ? `${window.StudioStatus.RESULT.not_tested}${studio ? " (index contribution 0)" : " (excluded from measured quality)"}` : r.score + "/100"}</p><p>${r.human_review_note ? "<strong class=badge>Overridden — reason logged</strong> " : ""}${r.needs_review ? `<strong>${esc(window.StudioStatus.QUALIFIER.needs_review)}</strong> ` : ""}${esc(r.reason)}</p>${consistencyNotice(r)}${(r.judges || []).map((j) => `<p class="judge-reason">Judge: ${esc(j.model)} — ${j.score}%${judgeConsistency(j)}<br>Evidence: ${j.evidence.map(esc).join(" | ")}${judgeProvenance(j)}</p>`).join("")}${nonJudgeEngine(r)}${window.renderEvidenceDetails(c, r)}${r.transcript
                   .map(
                     (t) => `<div class="transcript"><strong>User:</strong> ${esc(t.input)}
 <strong>Bot:</strong> ${esc(t.output || t.error || "No response")}
@@ -526,7 +575,15 @@ Time: ${t.seconds ?? "Unknown"} seconds</div>`,
       const scored = rows.filter(
         (r) => r.score != null && ["passed", "failed"].includes(r.status),
       ).length;
-      return `<details data-case="${esc(item.category)}" ${openIds.has(item.category) ? "open" : ""}><summary>${esc(caseName(item))}<span class="summary-meta">${scored}/${rows.length} outcomes scored</span></summary><div data-case-body>${openIds.has(item.category) ? caseEvidence(item.category) : ""}</div></details>`;
+      const passed = rows.filter((r) => r.status === "passed").length;
+      const untested = rows.filter((r) => r.status === "not_tested").length;
+      const contradicted = rows.filter(
+        (r) => r.consistency_status === "contradictory" || (r.contradictions || []).length,
+      ).length;
+      const meta =
+        `${rows.length} processed · ${scored} scored · ${passed} passed · ${untested} ${window.StudioStatus.RESULT.not_tested}` +
+        (contradicted ? ` · ${contradicted} ${window.StudioStatus.QUALIFIER.contradictory}` : "");
+      return `<details data-case="${esc(item.category)}" ${openIds.has(item.category) ? "open" : ""}><summary>${esc(caseName(item))}<span class="summary-meta">${esc(meta)}</span></summary><div data-case-body>${openIds.has(item.category) ? caseEvidence(item.category) : ""}</div></details>`;
     })
     .join("");
   // Load evidence only when requested, rather than inserting hundreds of hidden transcripts.
@@ -609,6 +666,11 @@ async function poll() {
 async function loadHistory() {
   const runs = await api("/api/blackbox/runs");
   window.StudioUI.setRuns(runs);
+  /* A Run resumed or stopped outside this page (by a recovery script, or a second window)
+     reports its new status in this list while the selected result still holds the old
+     snapshot. The heartbeat below only polls while the *loaded* status is active, so without
+     this reconciliation the panel stayed stale until Refresh was pressed. */
+  if (staleAgainstHistory(runs, runId, current)) await poll();
   $("history").innerHTML = runs
     .map(
       (r) =>
@@ -880,6 +942,12 @@ boot().catch((error) => tell(error.message));
 setInterval(() => {
   if (current && ["queued", "running"].includes(current.status)) poll();
 }, 2500);
+/* While the loaded result looks finished, re-read the history list at a slower cadence so an
+   externally resumed Run is picked up without polling a completed result every few seconds. */
+setInterval(() => {
+  if (!runId || (current && ["queued", "running"].includes(current.status))) return;
+  loadHistory().catch(() => {});
+}, 10000);
 
 let liveEvents = null;
 let liveRun = "";

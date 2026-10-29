@@ -192,7 +192,7 @@ def provenance(candidate: JudgeSelection, requested: JudgeSelection, earlier: li
 
 
 async def panel(config: Settings, case: dict, observation: dict) -> dict:
-    from . import judge_prompts
+    from . import judge_prompts, provider_status
     from .bias import ordered_observation, signals
     from .connectors import safe_error
     from .deterministic import evaluate_exact
@@ -305,6 +305,7 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
                         "reason": safe_error(exc).replace(
                             "Target returned", "Judge provider returned"
                         ),
+                        **provider_status.describe(exc),
                     }
                 )
             except Exception as exc:
@@ -314,16 +315,17 @@ async def panel(config: Settings, case: dict, observation: dict) -> dict:
                         "reason": safe_error(exc).replace(
                             "Target returned", "Judge provider returned"
                         ),
+                        # Billing, authentication, an unavailable model, a transient rate limit
+                        # and an unusable verdict need different actions, so they are named apart.
+                        **provider_status.describe(exc),
                     }
                 )
-            reason = failures[-1]["reason"]
+            # Only a condition that waiting cannot resolve earns the long cooldown.
             mark_unavailable(
                 config,
                 candidate,
-                reason,
-                any(
-                    word in reason.lower() for word in ("quota", "balance", "billing", "401", "403")
-                ),
+                failures[-1]["reason"],
+                not failures[-1].get("retryable", False),
             )
             audit(run, "judge_unavailable", case=case["id"], **failures[-1])
             if index == 0 and len(candidates) == 1:

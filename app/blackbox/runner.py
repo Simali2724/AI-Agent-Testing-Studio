@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .. import database as db
-from . import judge_consistency, metering, pricing, reference_profile
+from . import judge_consistency, metering, pricing, provider_status, reference_profile
 from .catalog import build_cases
 from .connectors import Connector, safe_error
 from .cost_summary import summarize
@@ -295,6 +295,10 @@ def make_run(config):
             "Browser completion uses stable assistant text and may not support all streaming widgets.",
         ],
     }
+    if config.simple_mode:
+        # What the panel was allowed to do, stated rather than inferred from which judges happen
+        # to appear in the results.
+        run["judge_policy"] = provider_status.panel_policy(config)
     # Which owner-declared inputs this Run was judged against, so a result is never read as
     # though the evaluator knew more, or less, than it actually did.
     run["reference_inputs"] = {

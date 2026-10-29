@@ -376,3 +376,79 @@ test("historical Governance bookmarks redirect to the same run in the unified UI
     assert.equal(link.href, destination.href, "The visible fallback link has the same destination");
   }
 });
+
+test("an externally resumed run is reconciled against the history list", () => {
+  /* The reported defect: history showed "running" while the selected result stayed "stopped"
+     until Refresh was pressed, because the 2.5s heartbeat gates on the *loaded* status. */
+  const simple = readFileSync(path.join(repo, "app/blackbox_static/simple.js"), "utf8");
+  const context = vm.createContext({});
+  vm.runInContext(
+    simple.slice(
+      simple.indexOf("function staleAgainstHistory("),
+      simple.indexOf("function render(run)"),
+    ),
+    context,
+  );
+  const stale = (runs, id, loaded) =>
+    vm.runInContext(
+      `staleAgainstHistory(${JSON.stringify(runs)}, ${JSON.stringify(id)}, ${JSON.stringify(loaded)})`,
+      context,
+    );
+  const resumed = [{ id: "a", status: "running" }];
+  assert.equal(
+    stale(resumed, "a", { id: "a", status: "stopped" }),
+    true,
+    "a resumed run must be re-read instead of waiting for a manual Refresh",
+  );
+  assert.equal(
+    stale([{ id: "a", status: "completed" }], "a", { id: "a", status: "running" }),
+    true,
+    "a run that finished elsewhere must also be re-read",
+  );
+  assert.equal(
+    stale(resumed, "a", { id: "a", status: "running" }),
+    false,
+    "an agreeing status must not trigger another request",
+  );
+  assert.equal(stale(resumed, "a", null), false, "nothing is loaded yet");
+  assert.equal(stale(resumed, null, { id: "a", status: "stopped" }), false, "no run is selected");
+  assert.equal(
+    stale(resumed, "a", { id: "b", status: "stopped" }),
+    false,
+    "a detail for another run must not be judged against this selection",
+  );
+  assert.equal(stale([], "a", { id: "a", status: "stopped" }), false, "the run is not listed");
+  assert.equal(
+    stale([null, { id: "a", status: "running" }], "a", { id: "a", status: "stopped" }),
+    true,
+    "one malformed row must not break the comparison",
+  );
+});
+
+test("a run that is still active keeps the fast heartbeat and the slow one stands down", () => {
+  const simple = readFileSync(path.join(repo, "app/blackbox_static/simple.js"), "utf8");
+  /* Both heartbeats read the same loaded status, so a finished result is never polled every
+     few seconds and an active one is never left to the slow list refresh. */
+  assert.match(
+    simple,
+    /if \(current && \["queued", "running"\]\.includes\(current\.status\)\) poll\(\);/,
+    "the fast heartbeat still drives an active run",
+  );
+  assert.match(
+    simple,
+    /if \(!runId \|\| \(current && \["queued", "running"\]\.includes\(current\.status\)\)\) return;/,
+    "the slow list refresh stands down while the fast heartbeat is running",
+  );
+  assert.match(simple, /loadHistory\(\)\.catch\(\(\) => \{\}\);/, "the slow refresh is guarded");
+});
+
+test("an untested category is not presented as a demonstrated weakness", () => {
+  const simple = readFileSync(path.join(repo, "app/blackbox_static/simple.js"), "utf8");
+  assert.match(simple, /Lowest measured category scores/);
+  assert.match(
+    simple,
+    /\.filter\(\(c\) => c\.tested\)\s*\n\s*\.sort\(\(a, z\) => a\.score - z\.score\)/,
+    "only measured categories may be ranked as lowest",
+  );
+  assert.match(simple, /Not tested \(no measurement, not a weakness\)/);
+});
