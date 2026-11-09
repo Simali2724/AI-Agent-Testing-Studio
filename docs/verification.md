@@ -98,3 +98,181 @@ Two further boundaries, so a reader does not over-read the table:
 
 - **Human-label calibration** is implemented and tested with synthetic fixtures, but no representative human labels exist, so every Judge reports **uncalibrated**. See [judge-validation.md](judge-validation.md).
 - **CI** is configured for Windows, Ubuntu and macOS, installs Linux browser system dependencies and keeps failure traces. That configuration has not been executed on a remote runner as part of this work, so CI behaviour on Linux and macOS is configured but not observed.
+
+## 2026-11-09 — Open-source release candidate 0.1.0-rc.1 (T-046 to T-052)
+
+Environment: Windows 11 Home Single Language 10.0.26300, Python 3.12.3, Node 24.18.0,
+pip 24.0. Repository `AI-Agent-Testing-Studio`, branch `codex/open-source-release`,
+based on commit `cfbe8de`. Every check below used synthetic fixtures and mocked
+providers. **No provider credential was used and no paid or cloud call was made.**
+
+A note on provenance: the project lives on `D:`, and that volume **disconnected
+mid-session**. Windows logged NTFS `Delayed Write Failed` errors against `D:\$Mft` and
+`D:\AI-Agent-Testing-Studio\.venv\...` at 22:08:40, after which the volume was absent and
+`Get-Disk` showed only the internal NVMe. Every command issued against it had been read-only.
+
+Work continued on a clone of the published `master` on `C:`, whose source inventory matched
+the absent tree at **184 of 184** files. The volume later came back **intact**, and the
+release work was transferred onto it as a 34-file patch that applied cleanly. The surviving
+`D:` tree kept its working `.venv`, `node_modules`, `.env` and `runtime/studio.db`, so **no
+saved evaluation was lost**. The modules Windows had failed to write
+(`litellm/integrations`, `litellm/harness`) import correctly and `pip check` is clean, so the
+environment was not damaged. The results below were produced on `D:`.
+
+### Regression suite
+
+Run on `D:\AI-Agent-Testing-Studio`, serially, with the machine otherwise idle.
+
+| Check                    | Command                                                          | Result                                |
+| ------------------------ | ---------------------------------------------------------------- | ------------------------------------- |
+| Dependency consistency   | `python -m pip check`                                            | No broken requirements                |
+| Full suite               | `python -m pytest -q`                                            | **817 passed, 1 skipped** in 222.83 s |
+| Python format            | `python -m ruff format --check app tests scripts sample_project` | 135 files already formatted           |
+| Python lint              | `python -m ruff check app tests scripts sample_project`          | All checks passed                     |
+| Frontend and docs format | `npm run format:check`                                           | All matched files use Prettier style  |
+| JavaScript syntax        | `npm run check:js`                                               | 16 files checked                      |
+| Interface unit tests     | `npm run test:ui`                                                | 23 passed, 0 failed                   |
+| Documents                | `python scripts/check_docs.py`                                   | Passed across 32 Markdown documents   |
+| Whitespace               | `git diff --check`                                               | Clean                                 |
+
+The 1 skip is `test_symlink_escape_is_skipped`, which skips on a Windows account that cannot
+create symlinks. It is not a disabled failure.
+
+#### The real-time benchmark, and a failure I caused
+
+`test_standard_suite_runtime_regression_budget` measures wall-clock time and is only valid
+**serially on an otherwise idle machine**. An earlier full-suite run, during which this session
+was also running `npm`, Prettier and document writes, **failed** it:
+
+```text
+benchmark median 1.297s, budget 1.200s, runs [0.968, 1.703, 1.297, 1.063, 1.375]
+```
+
+The 0.968 s to 1.703 s spread is contention, not a code regression. Re-run alone on an idle
+machine, three consecutive times:
+
+```text
+run 1: median 0.984s, budget 1.200s, runs [0.828, 0.922, 1.687, 1.235, 0.984]  passed
+run 2: median 0.859s, budget 1.200s, runs [0.859, 0.875, 0.969, 0.828, 0.844]  passed
+run 3: median 0.813s, budget 1.200s, runs [0.859, 0.859, 0.813, 0.797, 0.813]  passed
+```
+
+It then also passed inside the full serial suite above. **The 1.200 s threshold was not changed
+and no workload was reduced.** The recorded failure is kept here deliberately: the lesson is
+that this benchmark must not share a machine, not that the budget is too tight.
+
+### Browser and interface checks
+
+| Check                            | Result                                                                                                                                                                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scripts/check-studio-ui.py`     | navigation, saved report, escaped model output, calibration panel (17 eligible conversations), governance alignment, provenance, full analysis sections, custom and unscored history, mobile layout — all **passed**, `browser_errors: []` |
+| `scripts/check-exact-compare.py` | four-target setup, exact-only preview, matrix and case details, baseline save, concurrency controls, start another run — all **passed**; **0 provider calls**, 0 judge requests                                                            |
+| `scripts/check_contrast.py`      | WCAG 2.2 AA: **44 measured, 0 failing, 0 skipped**                                                                                                                                                                                         |
+
+Artifacts were written to `runtime/ui-artifacts` from synthetic fixtures only.
+
+### Release candidate packaging
+
+Measured on the final artifact, built after every document change in this candidate. Its
+SHA-256 and content digest are recorded in the manifest written beside it by
+`scripts/release_manifest.py`; the hash is deliberately **not** copied into this document,
+because a document inside the archive cannot state its own archive's hash.
+
+| Step                               | Result                                                                                                                                                                           |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Archive build                      | `scripts/package_release.py` produced a verified ZIP of **230 files**, 1157253 bytes                                                                                             |
+| Required setup files present       | All three lockfiles, `run.ps1`, `start.sh`, `Dockerfile`, `Dockerfile.scanners`, `compose.yaml`, `.dockerignore`, `LICENSE`, `CHANGELOG.md` and the reviewed `.github` templates |
+| Archive boundary                   | No `runtime/` entry, no `.env`, and `PROGRESS.md` and `HANDOFF.md` are excluded by design                                                                                        |
+| Fresh extraction                   | Extracted to a directory **whose path contains spaces**, outside the repository                                                                                                  |
+| Locked install from the archive    | `pip install --require-hashes -r requirements.lock` exit 0 in **260 s**; **77 packages**; `pip check` reported no broken requirements                                            |
+| Resolved versions                  | fastapi 0.142.2, uvicorn 0.54.0, httpx 0.28.1, litellm 1.105.0, reportlab 5.0.1, playwright 1.63.0, PyYAML 6.0.3                                                                 |
+| Start with the documented launcher | `powershell -ExecutionPolicy Bypass -File .\run.ps1 -Port 2813` served **HTTP 200**, 20941 bytes, in **9.7 s**                                                                   |
+| Demo reachable from the archive    | `GET /api/blackbox/case-set/demo` returned HTTP 200 with **8 Cases**                                                                                                             |
+| `.env` bootstrap                   | The launcher copied `.env.example` to `.env` in the fresh directory                                                                                                              |
+| `LICENSE` in the extract           | Present                                                                                                                                                                          |
+| Occupied port                      | Refused with `[Errno 10048] error while attempting to bind`, then shut down cleanly. It did not hang                                                                             |
+
+The environment was created from this artifact's own `requirements.lock`. An earlier
+intermediate build was install-tested the same way and gave the same result; the counts above
+are from the final artifact.
+
+**Not exercised in the fresh install:** the first-run `playwright install chromium` download
+was skipped, because the environment already existed when the launcher ran. The web-chat
+browser connector is therefore **unverified** in the extracted archive, and a genuine first
+run additionally downloads Chromium, which makes a true first install slower than the 260 s
+above. The `start.sh` path was not executed at all; see the platform limits below.
+
+### Synthetic no-key demo
+
+Two real processes, driven over HTTP, with no provider credential:
+
+| Step                        | Result                                                                                   |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| Demo bot startup            | Ready in **1.1 s** on `127.0.0.1:2809`                                                   |
+| Studio startup              | Ready in **0.5 s**                                                                       |
+| Demo bot answered over HTTP | `POST /chat` returned the catalogue warranty answer                                      |
+| Demo Cases fetched          | **8 Cases**, published with `judge_enabled=false`                                        |
+| Run                         | Completed through the ordinary API connector and runner                                  |
+| Scoring without any Judge   | **8 of 8 results scored — 7 passed, 1 failed**                                           |
+| JSON export                 | HTTP 200, and its `id` matched the selected Run                                          |
+| PDF export                  | Rendered, **59760 bytes**, valid `%PDF` header                                           |
+| Restart durability          | After restarting Studio only, the Run was still listed and reopened with the same status |
+
+The single failing Case is deliberate: the demo bot answers a refund question with an
+invented unconditional guarantee and the Case forbids that phrase. A demo in which
+everything passed would misrepresent the tool.
+
+**What this does not establish:** the demo measures hand-written strings in
+`app/blackbox/demo_bot.py`. It is not a measurement of any real chatbot, and it says
+nothing about Judge accuracy because no Judge ran.
+
+### Prerequisite and failure behaviour
+
+On this machine **Docker is not installed** and **Ollama is installed**, which made the
+missing-prerequisite path testable rather than assumed.
+
+- White-box readiness with no source supplied reported **`ready: 0`** across all 14
+  checks, each with the reason "No source ZIP or repository was supplied", under the
+  notice "Ready means the check can be attempted. It is not a pass."
+- **Not verified:** the Docker-absent path with a source ZIP actually supplied, any
+  scanner execution, the scanner image and database provisioning, and the optional
+  HHEM/Qwen classifiers, which remain disabled and unverified.
+
+### Private material review
+
+- No `.env`, key, certificate or credential file was added in **any reachable commit**.
+- No provider-key-shaped string appears in any reachable commit. Patterns covered
+  Google, Anthropic, OpenAI-style, GitHub, Slack and AWS keys, and PEM private-key headers.
+- Credential-shaped literals in `tests/test_export_redaction.py` and
+  `tests/test_judge_calibration.py` are synthetic fixtures whose purpose is to be
+  redacted; they sit beside a fictional phone number, `example.com` and documentation UUIDs.
+- The 509-Case and 20-per-Category packs contain **authored synthetic prompts** using
+  synthetic identifiers, not customer transcripts or personal data.
+- **Disclosure limit:** this is pattern scanning over reachable commits. It is evidence
+  that nothing was found, not proof that nothing exists. Unreachable objects and any
+  other remote are out of scope.
+- **Owner decision outstanding:** a named third-party company still appears in shipped UI
+  labels, auto-detection logic, API route names and case-pack filenames. Recorded in
+  [open-source-readiness.md](open-source-readiness.md).
+
+### Platform limits for this candidate
+
+| Platform                | Status                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| Windows 11, Python 3.12 | Qualified: locked install, launcher start, demo, suite, packaging                 |
+| Linux (native)          | **Not qualified.** `start.sh` was not executed                                    |
+| macOS (native)          | **Not qualified.** `start.sh` was not executed                                    |
+| Docker container        | **Not qualified.** No image was built; Docker is absent on this machine           |
+| Remote CI               | **Not observed.** No remote run was triggered, and publication was not authorized |
+
+Python support is claimed for **3.12 only**, which is the one version tested. Node 24.18.0
+was used for contributor checks; Studio does not require Node at runtime.
+
+### Pacing and the real-time benchmark
+
+The bounded parallel pacing harness, the clock seam and the fake-clock pacing tests exist
+only in a **separate local working tree** and are **not present in this repository**, so
+this candidate reports pacing stress as **Not tested** rather than citing the other tree's
+recorded 50 of 50 result. `tests/test_concurrency.py` and the real-time benchmark in
+`tests/test_speed_cache.py` do pass here, which is a narrower claim. The benchmark
+threshold was not changed and no workload was reduced.
