@@ -234,8 +234,9 @@ REQUIRED_IN_RELEASE = (
     ".github/pull_request_template.md",
     ".github/ISSUE_TEMPLATE/bug_report.md",
 )
-# Internal working history stays local; the public README must not link it.
-EXCLUDED_FROM_RELEASE = ("PROGRESS.md", "HANDOFF.md")
+# Internal working history and continuation notes stay local: they carry workstation paths
+# and another checkout's details. The public README must not link them.
+EXCLUDED_FROM_RELEASE = ("PROGRESS.md", "HANDOFF.md", "NEXT_AI_PROMPT.md")
 LOCAL_LINK = re.compile(r"!?\[[^\]\n]*\]\(\s*(?!https?:|mailto:|#)([^\s)#]+)")
 
 
