@@ -9,6 +9,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import math
 import re
 import uuid
 from datetime import datetime, timezone
@@ -59,6 +60,10 @@ WARNINGS = {
     "insufficient_sample": "Calibration sample is too small or unbalanced to establish alignment. Metrics are descriptive only.",
     "not_aligned": "Judge not aligned with human labels on this sample. Review disagreements before using it at scale.",
     "meets": "Meets configured calibration criteria.",
+    "single_reviewer": "One reviewer only: there is no inter-rater agreement, so an idiosyncratic reading cannot be distinguished from a correct one. Add an independent second reviewer before relying on this.",
+    "reviewers_not_independent": "Both label streams name the same person. Two copies of one person's labels are not independent evidence.",
+    "reviewers_disagree": "The two reviewers disagree more than the configured threshold allows. Human labels are not reproducible on this sample, so Judge agreement against them means little.",
+    "wide_interval": "The agreement interval is wide because few distinct scenarios were reviewed. Treat the point estimate as indicative, not measured.",
 }
 LIMITATIONS = [
     "Conditional on this sample and rubric; not certification, universal Judge accuracy or an industry standard.",
@@ -403,14 +408,46 @@ def select(selection: Selection) -> tuple[list[dict], list[dict], dict]:
 
 
 def latest(item: dict) -> dict | None:
+    """The primary reviewer's current label. Unchanged meaning for every saved record."""
     return item["labels"][-1] if item.get("labels") else None
 
 
-def public_item(item: dict, blind: bool = True) -> dict:
-    """Labeling view: evidence the owner needs, never original Judge scores or reasons."""
-    return {k: v for k, v in item.items() if k != "labels"} | {
+def latest_second(item: dict) -> dict | None:
+    """The second reviewer's current label, or None when nobody reviewed it independently."""
+    return item["second_labels"][-1] if item.get("second_labels") else None
+
+
+def reviewer_names(items: list[dict]) -> dict[str, str]:
+    """The distinct human identity recorded in each label stream."""
+    names = {}
+    for item in items:
+        for role, label in (("primary", latest(item)), ("second", latest_second(item))):
+            if label:
+                # A label saved before reviewer attribution existed is the owner's.
+                names.setdefault(role, label.get("author") or OWNER)
+    return names
+
+
+def public_item(item: dict, blind: bool = True, role: str = "primary") -> dict:
+    """Labeling view: evidence the owner needs, never original Judge scores or reasons.
+
+    Both label streams are withheld from the other reviewer while labeling. A second
+    reviewer who can see the first reviewer's verdict is not an independent reviewer, so
+    their own stream is all they get back.
+    """
+    view = {k: v for k, v in item.items() if k not in ("labels", "second_labels")}
+    if role == "second":
+        return view | {
+            "label": latest_second(item),
+            "label_revision": len(item.get("second_labels", [])),
+            "role": "second",
+            "primary_label_exists": bool(item.get("labels")),
+        }
+    return view | {
         "label": latest(item),
         "label_revision": len(item.get("labels", [])),
+        "role": "primary",
+        "second_label_exists": bool(item.get("second_labels")),
     }
 
 
@@ -531,12 +568,35 @@ def save_label(ident: str, item_id: str, update: LabelUpdate) -> dict:
         raise CalibrationError(f"Rationale is limited to {p.max_rationale_chars} characters.")
     binary = update.binary
     verdict = "pass" if binary else "fail"
+    reviewer = update.reviewer.strip()
+    if not reviewer:
+        raise CalibrationError("A label needs the reviewer's name.")
+    stream = "second_labels" if update.role == "second" else "labels"
 
     def mutate(record, conn):
         item = next((i for i in record["draft"]["items"] if i["id"] == item_id), None)
         if not item:
             raise NotFound("Item not found in this draft.")
-        revision = len(item["labels"])
+        item.setdefault("second_labels", [])
+        existing = reviewer_names(record["draft"]["items"])
+        other = existing.get("primary" if update.role == "second" else "second")
+        if other and other.casefold() == reviewer.casefold():
+            raise CalibrationError(
+                "The second reviewer must be a different person from the first. Two copies of "
+                "one person's labels are not independent evidence."
+            )
+        same_role = existing.get(update.role)
+        if same_role and same_role.casefold() != reviewer.casefold():
+            raise CalibrationError(
+                f"This set's {update.role} labels belong to {same_role}. Use that name, or "
+                "start a new set for a different reviewer."
+            )
+        if update.role == "second" and not item["labels"]:
+            raise CalibrationError(
+                "Label this item as the primary reviewer first; the second review is a "
+                "comparison against an existing judgement."
+            )
+        revision = len(item[stream])
         if revision != update.expected_revision:
             raise Conflict(
                 f"Label revision {update.expected_revision} is stale; current revision is {revision}."
@@ -545,29 +605,56 @@ def save_label(ident: str, item_id: str, update: LabelUpdate) -> dict:
             raise CalibrationError(
                 "Changing a label requires a meaningful reason (10+ characters)."
             )
-        item["labels"].append(
+        item[stream].append(
             {
                 "revision": revision + 1,
                 "verdict": verdict,
                 "binary_pass": binary,
                 "score": update.score,
                 "rationale": update.rationale.strip(),
-                "author": OWNER,
+                "author": reviewer,
+                "role": update.role,
                 "at": now(),
                 "change_reason": update.change_reason.strip(),
             }
         )
         chain_append(
-            record, conn, "label_saved", item=item_id, revision=revision + 1, pass_label=binary
+            record,
+            conn,
+            "label_saved",
+            item=item_id,
+            revision=revision + 1,
+            pass_label=binary,
+            role=update.role,
+            reviewer=reviewer,
         )
         return item
 
     # Labels are guarded per item revision above; the set revision is not required to match.
     item = _guard(KIND_SET, ident, mutate)
-    return {"item_id": item_id, "label_revision": len(item["labels"]), "label": latest(item)}
+    current = latest_second(item) if update.role == "second" else latest(item)
+    return {
+        "item_id": item_id,
+        "label_revision": len(item[stream]),
+        "label": current,
+        "role": update.role,
+        "reviewer": reviewer,
+    }
+
+
+def _label_identity(label: dict | None) -> dict | None:
+    if not label:
+        return None
+    return {
+        "rev": label["revision"],
+        "pass": label["binary_pass"],
+        "score": label["score"],
+        "author": label.get("author", OWNER),
+    }
 
 
 def version_hash(items: list[dict]) -> str:
+    """Freeze the labels, including the second reviewer's, so a later change is detectable."""
     return digest(
         {
             "threshold": 80,
@@ -576,11 +663,8 @@ def version_hash(items: list[dict]) -> str:
                     "id": i["id"],
                     "payload": i["payload_hash"],
                     "source": i["source_hash"],
-                    "label": (
-                        {"rev": lab["revision"], "pass": lab["binary_pass"], "score": lab["score"]}
-                        if (lab := latest(i))
-                        else None
-                    ),
+                    "label": _label_identity(latest(i)),
+                    "second_label": _label_identity(latest_second(i)),
                 }
                 for i in items
             ],
@@ -688,10 +772,12 @@ def summarize_set(record: dict) -> dict:
     }
 
 
-def set_detail(record: dict) -> dict:
+def set_detail(record: dict, role: str = "primary") -> dict:
     return {
         **summarize_set(record),
-        "items_detail": [public_item(i) for i in record["draft"]["items"]],
+        "items_detail": [public_item(i, role=role) for i in record["draft"]["items"]],
+        "labeling_role": role,
+        "reviewers": reviewer_names(record["draft"]["items"]),
         "selection_methods": record["selection_methods"],
         "audit_integrity": integrity(record),
     }
@@ -705,6 +791,119 @@ def _rate(numerator: int, denominator: int) -> dict:
         "numerator": numerator,
         "denominator": denominator,
         "percent": round(100 * numerator / denominator, 2) if denominator else None,
+    }
+
+
+#: Two-sided 95% normal quantile.
+Z_95 = 1.959963984540054
+
+
+def wilson_interval(successes: int, total: int, z: float = Z_95) -> dict | None:
+    """A 95% Wilson score interval for a binomial proportion.
+
+    Wilson rather than the normal approximation because these samples are small and the
+    proportion sits near 1, where the normal approximation runs past 100% and understates
+    the uncertainty. Returns None when there is nothing to estimate.
+    """
+    if total <= 0 or successes < 0 or successes > total:
+        return None
+    phat = successes / total
+    denominator = 1 + z * z / total
+    centre = (phat + z * z / (2 * total)) / denominator
+    half = z * math.sqrt(phat * (1 - phat) / total + z * z / (4 * total * total)) / denominator
+    return {
+        "method": "Wilson score, 95%",
+        "unit": "distinct scenario",
+        "successes": successes,
+        "total": total,
+        "point_percent": round(100 * phat, 2),
+        "low_percent": round(100 * max(0.0, centre - half), 2),
+        "high_percent": round(100 * min(1.0, centre + half), 2),
+    }
+
+
+def scenario_outcomes(pairs: list[tuple[dict, dict]]) -> tuple[int, int]:
+    """Collapse each scenario's repeats into one agree/disagree observation.
+
+    Repeats of one scenario are the same question asked again, so they are correlated and
+    must not each count as an independent observation. A scenario counts as agreeing only
+    when more than half of its comparable repeats agree; an even split counts against
+    agreement, which is the conservative reading.
+    """
+    groups: dict[tuple, list[bool]] = {}
+    for item, result in pairs:
+        groups.setdefault(scenario_key(item), []).append(bool(result["agrees"]))
+    agreeing = sum(1 for votes in groups.values() if sum(votes) * 2 > len(votes))
+    return agreeing, len(groups)
+
+
+def reviewer_agreement(items: list[dict], p: CalibrationPolicy) -> dict:
+    """Agreement between two independent human reviewers over the same items.
+
+    This is human-versus-human agreement and is deliberately separate from the
+    human-versus-Judge agreement reported elsewhere. It says whether the human labels are
+    reproducible at all; it says nothing about the Judge.
+    """
+    names = reviewer_names(items)
+    pairs = [(latest(i), latest_second(i), i) for i in items if latest(i) and latest_second(i)]
+    both = len(pairs)
+    matching = sum(1 for a, b, _ in pairs if a["binary_pass"] == b["binary_pass"])
+    table = {
+        "both_pass": sum(1 for a, b, _ in pairs if a["binary_pass"] and b["binary_pass"]),
+        "both_fail": sum(1 for a, b, _ in pairs if not a["binary_pass"] and not b["binary_pass"]),
+        "primary_pass_second_fail": sum(
+            1 for a, b, _ in pairs if a["binary_pass"] and not b["binary_pass"]
+        ),
+        "primary_fail_second_pass": sum(
+            1 for a, b, _ in pairs if not a["binary_pass"] and b["binary_pass"]
+        ),
+    }
+    kappa, kappa_note = None, "Needs at least two paired labels."
+    if both:
+        observed = matching / both
+        primary_pass = (table["both_pass"] + table["primary_pass_second_fail"]) / both
+        second_pass = (table["both_pass"] + table["primary_fail_second_pass"]) / both
+        expected = primary_pass * second_pass + (1 - primary_pass) * (1 - second_pass)
+        if abs(1 - expected) < 1e-12:
+            kappa_note = (
+                "Undefined: both reviewers used a single class, so chance agreement is already "
+                "total. Raw agreement is not evidence of reliability here."
+            )
+        else:
+            kappa = round((observed - expected) / (1 - expected), 4)
+            kappa_note = (
+                "Cohen's kappa corrects raw agreement for the agreement expected by chance "
+                "given each reviewer's own pass rate."
+            )
+    independent = len({n.casefold() for n in names.values()}) >= 2
+    if not names.get("second"):
+        status = "single_reviewer"
+    elif not independent:
+        status = "not_independent"
+    elif not both:
+        status = "no_overlap"
+    elif (
+        p.min_reviewer_agreement_percent
+        and 100 * matching / both < p.min_reviewer_agreement_percent
+    ):
+        status = "below_threshold"
+    else:
+        status = "measured"
+    return {
+        "status": status,
+        "reviewers": names,
+        "independent": independent,
+        "reviewer_count": len({n.casefold() for n in names.values()}),
+        "paired_items": both,
+        "agreement": _rate(matching, both),
+        "table": table,
+        "cohens_kappa": kappa,
+        "kappa_note": kappa_note,
+        "disagreement_ids": [i["id"] for a, b, i in pairs if a["binary_pass"] != b["binary_pass"]],
+        "limitation": (
+            "Human-versus-human agreement only. It does not measure the Judge, and agreement "
+            "between two reviewers does not make either of them correct."
+        ),
     }
 
 
@@ -790,6 +989,12 @@ def metrics(
             "actual": fail_scenarios,
             "met": fail_scenarios >= p.min_human_fail_scenarios,
         },
+        {
+            "name": "independent_reviewers",
+            "required": p.min_reviewers,
+            "actual": len({n.casefold() for n in reviewer_names(labeled).values()}),
+            "met": len({n.casefold() for n in reviewer_names(labeled).values()}) >= p.min_reviewers,
+        },
     ]
     return {
         "evaluator_id": evaluator_id,
@@ -806,6 +1011,8 @@ def metrics(
             "not_tested": len(labeled) - len(comparable),
         },
         "agreement": _rate(matching, len(comparable)),
+        "agreement_interval": wilson_interval(*scenario_outcomes(comparable)),
+        "reviewers": reviewer_agreement(labeled, p),
         "confusion": confusion,
         "false_acceptance": _rate(confusion["human_fail_judge_pass"], human_fail),
         "false_rejection": _rate(confusion["human_pass_judge_fail"], human_pass),
@@ -829,11 +1036,33 @@ def metrics(
     }
 
 
+def reviewer_warnings(entry: dict) -> list[str]:
+    """Caveats about the human labels themselves, independent of the Judge's agreement."""
+    reviewers = entry.get("reviewers") or {}
+    found = []
+    status = reviewers.get("status")
+    if status == "single_reviewer":
+        found.append(WARNINGS["single_reviewer"])
+    elif status == "not_independent":
+        found.append(WARNINGS["reviewers_not_independent"])
+    elif status == "below_threshold":
+        found.append(WARNINGS["reviewers_disagree"])
+    interval = entry.get("agreement_interval")
+    if interval and interval["high_percent"] - interval["low_percent"] > 20:
+        found.append(WARNINGS["wide_interval"])
+    return found
+
+
 def classify(entry: dict, p: CalibrationPolicy, complete: bool) -> tuple[str, list[str]]:
-    """Distinct states: incomplete, not_aligned, insufficient_sample, meets (calibrated)."""
+    """Distinct states: incomplete, not_aligned, insufficient_sample, meets (calibrated).
+
+    Reaching `meets` never silences the caveats about the human labels: a one-reviewer
+    sample still says so, because meeting a threshold against one person's labels is a
+    narrower claim than validated agreement.
+    """
     counts = entry["counts"]
     checks = {c["name"]: c for c in entry["sufficiency"]["checks"]}
-    warnings = []
+    warnings = reviewer_warnings(entry)
     incomplete = (
         not complete or counts["unlabeled"] > 0 or not checks["comparable_coverage_percent"]["met"]
     )
@@ -851,7 +1080,7 @@ def classify(entry: dict, p: CalibrationPolicy, complete: bool) -> tuple[str, li
         return "not_aligned", warnings
     if not entry["sufficiency"]["sufficient"]:
         return "insufficient_sample", warnings
-    return "meets", [WARNINGS["meets"]]
+    return "meets", [WARNINGS["meets"], *reviewer_warnings(entry)]
 
 
 def entries(evaluation: dict, items: list[dict], p: CalibrationPolicy) -> dict:

@@ -111,11 +111,74 @@ The honest sequence:
 
 The product helps here but does not enforce it. Changing the model, endpoint, prompt template, evidence-validation semantics, evaluation settings, policy, scope or a Case criterion changes the evaluator or rubric fingerprint, so the earlier calibration is shown as **stale** with the specific reasons rather than carried forward. It cannot detect that you read the holdout disagreements anyway. Once you have reviewed a holdout fold, it is a development fold.
 
+## Two independent reviewers
+
+A second reviewer is what turns "the Judge agrees with me" into "the Judge agrees with a
+judgement two people reach independently". The workflow is deliberately narrow.
+
+**Attribution.** Every label records the reviewer's name and its role, `primary` or
+`second`, in the audit chain as well as on the label. Pre-existing labels that carry no
+name are attributed to the local owner, so older sets keep their meaning.
+
+**Two names, two people.** The second reviewer's name must differ from the first's,
+compared case-insensitively. Two copies of one person's labels are not independent
+evidence, and the product refuses them rather than reporting a flattering agreement
+number. One label stream belongs to one person: a different name on the same stream is
+refused too.
+
+**Blind review.** Requesting the set with `?role=second` returns the second reviewer's own
+labels and withholds the first reviewer's. A reviewer who can see the other's verdict is
+not an independent reviewer. Neither raw label stream is ever sent to the labeling screen.
+
+**Ordering.** An item must carry a primary judgement before it can take a second one: the
+second review is a comparison against an existing judgement, not a parallel first pass.
+
+**What is reported.** For the items both reviewers labelled:
+
+- raw agreement, with its numerator and denominator;
+- **Cohen's kappa**, which corrects raw agreement for the agreement expected by chance
+  given each reviewer's own pass rate. When both reviewers used a single class, chance
+  agreement is already total and kappa is reported as undefined with that reason — raw
+  agreement must not stand in for it;
+- the full two-by-two table and the identifiers of every disagreement;
+- a status: `single_reviewer`, `not_independent`, `no_overlap`, `below_threshold` or
+  `measured`.
+
+This is **human-versus-human** agreement. It is kept separate from human-versus-Judge
+agreement and from model-versus-model agreement, and it says nothing about whether either
+reviewer is right. Two reviewers who agree with each other can both be wrong.
+
+**Requiring it.** The `min_reviewers` policy defaults to 1, so existing sets keep their
+recorded status. Set it to 2 and a one-reviewer sample becomes `insufficient_sample`
+instead of `meets`.
+
+## How the interval is computed
+
+Agreement is reported with a **95% Wilson score interval**, and its statistical unit is the
+**distinct scenario**, not the item.
+
+Repeats of one scenario are the same question asked again, so they are correlated. Counting
+each repeat as an independent observation would shrink the interval dishonestly. Each
+scenario's repeats are therefore collapsed into a single agree-or-disagree observation,
+decided by a majority of its comparable repeats; an even split counts against agreement,
+which is the conservative reading. The interval is then computed over the number of
+scenarios.
+
+Wilson rather than the normal approximation because these samples are small and agreement
+sits near 100%, where the normal approximation runs past 100% and understates the
+uncertainty.
+
+**Limitations.** The interval describes sampling error for this sample under this rubric and
+this evaluator. It does not cover reviewer error, a shifting provider, or scenarios outside
+the sample. With ten scenarios at 90% agreement the interval runs roughly 60% to 98% — wide
+enough that the point estimate should be read as indicative. An interval wider than 20
+points is flagged as such in the reported warnings.
+
 ## Recording reviewer limitations
 
 Put these in your write-up. None of them are defects; omitting them is.
 
-- **One reviewer.** A single owner's labels have no inter-rater agreement, so an idiosyncratic reading cannot be distinguished from a correct one. Two reviewers over the same frozen version would give that, and this product does not provide a second-reviewer workflow.
+- **One reviewer.** A single reviewer's labels have no inter-rater agreement, so an idiosyncratic reading cannot be distinguished from a correct one. A second reviewer is now supported; see [two independent reviewers](#two-independent-reviewers). A one-reviewer sample still reports its caveat even when it meets the agreement threshold.
 - **Prior exposure.** State whether you had seen the Run's results before labeling.
 - **Revised labels.** State how many labels you changed after Step 6, and why.
 - **Scope.** Name the bot, the Run, the Categories present, the language of the transcripts, and the sample size and seed. Agreement does not transfer outside them.

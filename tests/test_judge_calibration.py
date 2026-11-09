@@ -390,7 +390,11 @@ def test_agreement_threshold_denominators_and_unavailable():
     assert entry["agreement"] == {"numerator": 8, "denominator": 10, "percent": 80.0}
     assert entry["counts"]["disagreeing"] == 2 and entry["counts"]["validly_judged"] == 10
     state, warnings = cal.classify(entry, p, True)
-    assert state == "meets" and warnings == [cal.WARNINGS["meets"]]
+    # Meeting the threshold against one reviewer's labels is a narrower claim than validated
+    # agreement, so the single-reviewer caveat travels with the "meets" state (T-053).
+    assert state == "meets"
+    assert warnings[0] == cal.WARNINGS["meets"]
+    assert cal.WARNINGS["single_reviewer"] in warnings
     items, results = fake_items(spec)
     results["i0"]["agrees"] = False  # 7/10 = 70% < 80%
     low = cal.metrics(items, results, "E", p)

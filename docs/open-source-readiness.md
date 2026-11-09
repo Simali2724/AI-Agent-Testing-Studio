@@ -41,7 +41,9 @@ An experimental release may truthfully show **uncalibrated** Judges. It may not 
 
 ## What this candidate does not establish
 
-**Judge accuracy is uncalibrated.** No representative human labels were collected. Agreement, false acceptance and false rejection rates are therefore unknown, and no confidence interval is reported. The mechanics for calibration exist; the human evidence does not. See [judge-validation.md](judge-validation.md).
+**Judge accuracy is uncalibrated.** No representative human labels were collected, so agreement, false acceptance and false rejection rates are unknown for every Judge in this release.
+
+The **mechanics** are now complete (T-053): labels carry a named reviewer and a role, a second reviewer must be a different person and reviews blind, inter-rater agreement and Cohen's kappa are computed and kept separate from Judge agreement, and agreement is reported with a 95% Wilson interval whose unit is the distinct scenario so correlated repeats cannot inflate it. **The human evidence does not exist.** Two named reviewers must supply real labels before any accuracy claim, and nothing in the test suite is evidence of Judge accuracy. See [judge-validation.md](judge-validation.md).
 
 **Pacing stress is untested in this lineage.** A separate local working tree contains a clock seam, fake-clock pacing tests and a bounded parallel stress harness that recorded 50 of 50 repetitions. **That work is not present in this repository**, so this candidate cannot claim it.
 

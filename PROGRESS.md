@@ -1483,6 +1483,61 @@ pass.
 With this the Black-box side matches what White-box already did: a result that produced no
 measurement says why and what to do next, rather than leaving the reader to infer it.
 
+## 2026-11-09 — Two-reviewer calibration mechanics (T-053)
+
+Same working tree and branch as the section above: `D:\AI-Agent-Testing-Studio`,
+`codex/open-source-release`. No provider credential, no cloud call, no saved evaluation
+changed. Synthetic labels only.
+
+The gap: `docs/judge-validation.md` stated outright that "this product does not provide a
+second-reviewer workflow", and `judge_calibration.py` had no reviewer identity, no
+inter-rater agreement and no interval. Human-versus-Judge agreement was reported as a bare
+percentage, so ten repeats of three scenarios looked like ten observations.
+
+### Changed files
+
+| File                                             | Change                                                                                                                                                                                                                                               |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/blackbox/calibration_models.py`             | `LabelUpdate` gains `reviewer` and `role`; policy gains `min_reviewers` and `min_reviewer_agreement_percent`                                                                                                                                         |
+| `app/blackbox/judge_calibration.py`              | `latest_second`, `reviewer_names`, `wilson_interval`, `scenario_outcomes`, `reviewer_agreement`, `reviewer_warnings`; `save_label` writes two attributed streams and enforces independence; `version_hash` and `public_item` cover the second stream |
+| `app/blackbox/calibration_routes.py`             | `GET /sets/{id}?role=second` returns a blind second-reviewer view                                                                                                                                                                                    |
+| `tests/test_calibration_reviewers.py`            | New: 29 tests                                                                                                                                                                                                                                        |
+| `tests/test_judge_calibration.py`                | One assertion updated: a one-reviewer "meets" now also carries its caveat                                                                                                                                                                            |
+| `docs/judge-validation.md`                       | Two new sections: the second-reviewer workflow and how the interval is computed                                                                                                                                                                      |
+| `docs/tasks.md`, `docs/open-source-readiness.md` | T-053 and the corrected calibration gate wording                                                                                                                                                                                                     |
+
+### Decisions inside the implementation
+
+- **Two streams, not one chain.** The primary stream keeps its exact existing meaning, so
+  every saved set and every existing metric is unchanged. The second reviewer gets
+  `second_labels`. A label with no recorded author is attributed to the local owner.
+- **Independence is enforced at the storage boundary**, not merely computed: a second
+  reviewer whose name matches the first is refused, compared case-insensitively.
+- **The second review is blind.** `?role=second` withholds the first reviewer's verdict, and
+  neither raw stream is ever returned to the labeling screen.
+- **The interval's unit is the scenario.** Repeats are collapsed to one observation by
+  majority, with an even split counting against agreement. Wilson rather than the normal
+  approximation, because these samples are small and agreement sits near 100%.
+- **`min_reviewers` defaults to 1**, so no saved set silently changes status. Setting it to 2
+  makes a one-reviewer sample `insufficient_sample`.
+
+### Validation
+
+29 new tests; the existing 74 calibration tests still pass. Full suite: **846 passed, 1 skipped**.
+Ruff format and lint clean; Prettier clean; `scripts/check_docs.py` passed across 34
+documents.
+
+The interval demonstrates its own point: 9 of 10 scenarios agreeing reports 90% with a
+59.58% to 98.21% interval. A worked example checks Cohen's kappa against the textbook
+formula rather than against the implementation.
+
+### Not done
+
+**No real human labels exist.** The mechanics are complete; the human evidence is external
+work. No Judge in this release is calibrated, and none of these tests is evidence of Judge
+accuracy. Obtaining labels needs the owner and a second named reviewer, and
+`min_reviewers` should be set to 2 for that run.
+
 ## 2026-11-09 — Open-source release candidate 0.1.0-rc.1 (T-046 to T-052)
 
 Worked in `C:/Users/Moinuddeen hussain/Documents/ChatGPT/Moinuddeen_airm/AI-Agent-Testing-Studio`

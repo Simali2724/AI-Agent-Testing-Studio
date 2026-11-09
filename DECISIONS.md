@@ -599,6 +599,28 @@ identifiers and another repository's name. They remain tracked in Git so the his
 preserved; they are simply not shipped as product documentation, and the shipped README must
 not link what the archive omits.
 
+### D-OSR-07 — Human labels are attributed, and the interval's unit is the scenario
+
+**Decision.** Record a named reviewer and a `primary` or `second` role on every calibration
+label, enforce that the two reviewers are different people, keep the second review blind,
+and report agreement with a 95% Wilson interval whose statistical unit is the distinct
+scenario rather than the item.
+
+**Why.** Agreement with one person's labels is not validation, and the product previously
+said so in prose while offering no way to fix it. Counting repeats of one scenario as
+independent observations would understate uncertainty, which is the specific way a
+calibration number becomes misleading. Collapsing each scenario's repeats by majority, with
+an even split counting against agreement, is the conservative reading.
+
+**Boundaries.** Human-versus-human agreement is reported separately from human-versus-Judge
+agreement and from model-versus-model agreement; agreement between two reviewers does not
+make either correct. Cohen's kappa is reported as undefined, with the reason, when both
+reviewers used a single class, rather than letting raw agreement stand in. `min_reviewers`
+defaults to 1 so no saved set changes status silently.
+
+**Still open.** No real labels exist, so no Judge is calibrated. The mechanics must not be
+cited as evidence of accuracy.
+
 ### D-OSR-06 — Claim only what was qualified
 
 **Decision.** Advertise Python 3.12 only, Windows only, and label Judge accuracy

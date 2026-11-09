@@ -58,6 +58,7 @@ this candidate from the published lineage only and to defer that work (T-052).
 | T-048 source archive manifest repaired    | **Done**, 14 tests including a real-repository export             |
 | T-049 license and honest public documents | **Done**                                                          |
 | T-050 document link checking broadened    | **Done**, now 32 documents                                        |
+| T-053 two-reviewer calibration mechanics  | **Done**, 29 tests; real human labels still absent                |
 | T-051 owner decisions                     | **Blocked** on the owner                                          |
 | T-052 pacing stress and native platforms  | **Blocked**; absent from this lineage, no Linux/macOS environment |
 
@@ -83,6 +84,8 @@ create symlinks. It is not a disabled failure.
 - **Remote CI: not run.** Publication was not authorized, so no candidate commit was pushed.
 - **Live provider smoke test: not run.** No credential was requested or used.
 - **Human calibration labels: not obtained.** Judges remain uncalibrated and are labelled so.
+  The two-reviewer mechanics now exist (T-053), so the only missing piece is two named
+  reviewers' real labels. Set `min_reviewers` to 2 for that run. Never fabricate a label.
 - **Chromium first-run download: skipped** in the fresh install, so the web-chat browser
   connector is unverified in the extracted archive.
 

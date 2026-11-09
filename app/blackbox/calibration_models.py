@@ -26,6 +26,12 @@ class CalibrationPolicy(BaseModel):
     min_agreement_percent: float = Field(default=80, ge=0, le=100)
     min_comparable_coverage_percent: float = Field(default=100, gt=0, le=100)
     min_distinct_scenarios: int = Field(default=10, ge=1, le=1000)
+    #: Independent human reviewers required before a sample is treated as sufficient. One
+    #: reviewer yields no inter-rater agreement, so an idiosyncratic reading cannot be told
+    #: apart from a correct one. The default stays 1 so existing sets keep their recorded
+    #: status; set it to 2 to require a real second review.
+    min_reviewers: int = Field(default=1, ge=1, le=2)
+    min_reviewer_agreement_percent: float = Field(default=80, ge=0, le=100)
     min_human_pass_scenarios: int = Field(default=2, ge=0, le=1000)
     min_human_fail_scenarios: int = Field(default=2, ge=0, le=1000)
     max_sets: int = Field(default=50, ge=1, le=500)
@@ -91,10 +97,17 @@ class AddItems(BaseModel):
 
 
 class LabelUpdate(BaseModel):
-    """Either a verdict or a finite 0-100 score; contradictions and booleans are rejected."""
+    """Either a verdict or a finite 0-100 score; contradictions and booleans are rejected.
+
+    ``reviewer`` names the human who made this judgement and ``role`` says which independent
+    stream it belongs to. Two streams only count as two reviewers when their names differ:
+    two copies of one person's labels are not independent evidence.
+    """
 
     model_config = {"extra": "forbid"}
     expected_revision: int = Field(ge=0, description="0 for a blank label")
+    reviewer: str = Field(default=OWNER, min_length=1, max_length=120)
+    role: Literal["primary", "second"] = "primary"
     verdict: Literal["pass", "fail"] | None = None
     score: float | None = None
     rationale: str = Field(default="", max_length=20000)

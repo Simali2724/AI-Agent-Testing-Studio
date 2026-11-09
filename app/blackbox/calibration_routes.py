@@ -87,8 +87,13 @@ def list_sets():
 
 
 @router.get("/sets/{ident}")
-def get_set(ident: uuid.UUID):
-    return guarded(lambda: cal.set_detail(cal.get_set(str(ident))))
+def get_set(ident: uuid.UUID, role: str = Query(default="primary", pattern="^(primary|second)$")):
+    """Return the set for labeling.
+
+    `role=second` returns the second reviewer's own labels and withholds the first
+    reviewer's, so an independent second review stays blind to it.
+    """
+    return guarded(lambda: cal.set_detail(cal.get_set(str(ident)), role=role))
 
 
 @router.post("/sets/{ident}/items")
