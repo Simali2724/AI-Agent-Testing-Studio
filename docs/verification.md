@@ -180,13 +180,13 @@ because a document inside the archive cannot state its own archive's hash.
 
 | Step                               | Result                                                                                                                                                                           |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Archive build                      | `scripts/package_release.py` produced a verified ZIP of **230 files**, 1157253 bytes                                                                                             |
+| Archive build                      | `scripts/package_release.py` produced a verified ZIP of **232 files**; its exact size and hash are in the manifest beside it                                                     |
 | Required setup files present       | All three lockfiles, `run.ps1`, `start.sh`, `Dockerfile`, `Dockerfile.scanners`, `compose.yaml`, `.dockerignore`, `LICENSE`, `CHANGELOG.md` and the reviewed `.github` templates |
 | Archive boundary                   | No `runtime/` entry, no `.env`, and `PROGRESS.md` and `HANDOFF.md` are excluded by design                                                                                        |
 | Fresh extraction                   | Extracted to a directory **whose path contains spaces**, outside the repository                                                                                                  |
 | Locked install from the archive    | `pip install --require-hashes -r requirements.lock` exit 0 in **260 s**; **77 packages**; `pip check` reported no broken requirements                                            |
 | Resolved versions                  | fastapi 0.142.2, uvicorn 0.54.0, httpx 0.28.1, litellm 1.105.0, reportlab 5.0.1, playwright 1.63.0, PyYAML 6.0.3                                                                 |
-| Start with the documented launcher | `powershell -ExecutionPolicy Bypass -File .\run.ps1 -Port 2813` served **HTTP 200**, 20941 bytes, in **9.7 s**                                                                   |
+| Start with the documented launcher | `powershell -ExecutionPolicy Bypass -File .\run.ps1 -Port 2813` served **HTTP 200**, 20941 bytes, in **4.1 s to 9.7 s** across runs                                              |
 | Demo reachable from the archive    | `GET /api/blackbox/case-set/demo` returned HTTP 200 with **8 Cases**                                                                                                             |
 | `.env` bootstrap                   | The launcher copied `.env.example` to `.env` in the fresh directory                                                                                                              |
 | `LICENSE` in the extract           | Present                                                                                                                                                                          |
