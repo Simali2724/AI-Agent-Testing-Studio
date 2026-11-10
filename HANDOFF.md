@@ -108,19 +108,19 @@ Rebuilt after every edit in this task, from a clean tree:
   --build-manifest runtime/release/ai-agent-studio-0.1.0-rc2.build.json
 ```
 
-Built from the clean tree at `440408b`, so the manifest reports **Clean** provenance with a
+Built from the clean tree at `cbb6a06`, so the manifest reports **Clean** provenance with a
 verified build record:
 
 | Field                    | Value                                                              |
 | ------------------------ | ------------------------------------------------------------------ |
 | Members                  | 235                                                                |
-| Size                     | 1213361 bytes                                                      |
-| SHA-256                  | `1e8d4ddf588fcc8602a725782861b63f3569ca594fe31f53b11682bdfb586fa0` |
-| Content digest           | `ec942a88591894856b4b762a8f4e19dfad4930ad4e5bb8497af6935aef8be018` |
+| Size                     | 1213653 bytes                                                      |
+| SHA-256                  | `869d26e18c7aa585253e57b2d95b74bc0e97ec346fb41b38961c7ef8b502e0fa` |
+| Content digest           | `4bb4c0b480361d114c956530b9b918b97ad6bba99d318610e1ca563e44f3a5e7` |
 | Content digest algorithm | `studio-release-content-v2`                                        |
 
 `runtime/` is gitignored, so the artifact, its build record and its manifest are **not** in
-Git. The hashes above are also in the manifest beside the artifact and in `PROGRESS.md`. `440408b` is the last commit that changes a **shipped** file. Only non-shipped local history
+Git. The hashes above are also in the manifest beside the artifact and in `PROGRESS.md`. `cbb6a06` is the last commit that changes a **shipped** file. Only non-shipped local history
 (`PROGRESS.md`, `HANDOFF.md`) changes after it, so a rebuild from a later commit produces the
 same content digest and a different full SHA-256, the ZIP timestamps being new. That was
 confirmed by rebuilding and comparing: identical content digest, different SHA-256. `--build-manifest`

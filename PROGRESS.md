@@ -1777,7 +1777,7 @@ files: `tests/test_release_manifest.py` (33). Extended: `test_demo.py` (12 to 24
 
 ### Candidate artifact
 
-Rebuilt after every edit, from the clean tree at `440408b`, with
+Rebuilt after every edit, from the clean tree at `cbb6a06`, with
 `--build-manifest`, so the manifest reports **Clean** provenance with a verified build record
 rather than guessing from inspection-time Git state.
 
@@ -1785,9 +1785,9 @@ rather than guessing from inspection-time Git state.
 | ------------------------ | ------------------------------------------------------------------ |
 | File                     | `ai-agent-studio-0.1.0-rc2.zip`                                    |
 | Members                  | 235                                                                |
-| Size                     | 1213361 bytes                                                      |
-| SHA-256                  | `1e8d4ddf588fcc8602a725782861b63f3569ca594fe31f53b11682bdfb586fa0` |
-| Content digest           | `ec942a88591894856b4b762a8f4e19dfad4930ad4e5bb8497af6935aef8be018` |
+| Size                     | 1213653 bytes                                                      |
+| SHA-256                  | `869d26e18c7aa585253e57b2d95b74bc0e97ec346fb41b38961c7ef8b502e0fa` |
+| Content digest           | `4bb4c0b480361d114c956530b9b918b97ad6bba99d318610e1ca563e44f3a5e7` |
 | Content digest algorithm | `studio-release-content-v2`                                        |
 
 Extracted into a fresh temporary directory, the archive passed **its own**
@@ -1795,7 +1795,7 @@ Extracted into a fresh temporary directory, the archive passed **its own**
 `HANDOFF.md`, `NEXT_AI_PROMPT.md`, `.env` or `runtime/` entry. The rc.1 artifact and its
 manifest were left in place; existing archives are never overwritten.
 
-`440408b` is the last commit touching a shipped file, so a rebuild from any later commit gives
+`cbb6a06` is the last commit touching a shipped file, so a rebuild from any later commit gives
 the **same content digest** and a different full SHA-256 (new ZIP timestamps). Confirmed by
 rebuilding and comparing. The hashes are recorded here and in the manifest beside the artifact,
 never inside a shipped document: a document in the archive cannot state its own archive's hash.
