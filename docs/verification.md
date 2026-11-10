@@ -255,15 +255,20 @@ missing-prerequisite path testable rather than assumed.
   labels, auto-detection logic, API route names and case-pack filenames. Recorded in
   [open-source-readiness.md](open-source-readiness.md).
 
-### Platform limits for this candidate
+### Platform limits as of rc.1 — partly superseded
 
-| Platform                | Status                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------- |
-| Windows 11, Python 3.12 | Qualified: locked install, launcher start, demo, suite, packaging                 |
-| Linux (native)          | **Not qualified.** `start.sh` was not executed                                    |
-| macOS (native)          | **Not qualified.** `start.sh` was not executed                                    |
-| Docker container        | **Not qualified.** No image was built; Docker is absent on this machine           |
-| Remote CI               | **Not observed.** No remote run was triggered, and publication was not authorized |
+This table records what was true on **2026-11-09**, for rc.1. Two rows changed on 2026-11-10
+when the branch was pushed and remote CI ran green on all three platforms. Read the current
+table in [the 2026-11-10 section](#the-branch-was-pushed-and-remote-ci-ran-green--2026-11-10)
+instead; this one is kept as the historical record, not corrected in place.
+
+| Platform                | Status on 2026-11-09                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Windows 11, Python 3.12 | Qualified: locked install, launcher start, demo, suite, packaging                                           |
+| Linux (native)          | **Not qualified.** `start.sh` was not executed — _suite and browser checks since green in CI_               |
+| macOS (native)          | **Not qualified.** `start.sh` was not executed — _suite and browser checks since green in CI_               |
+| Docker container        | **Not qualified.** No image was built; Docker is absent on this machine                                     |
+| Remote CI               | **Not observed** at that date. No remote run was triggered — _since observed, success on all three runners_ |
 
 Python support is claimed for **3.12 only**, which is the one version tested. Node 24.18.0
 was used for contributor checks; Studio does not require Node at runtime.
@@ -466,6 +471,11 @@ Every step succeeded on every platform: Ruff format and lint, Prettier, JavaScri
 Studio navigation, the **full pytest suite**, the current-shell browser check, the **new demo
 journey browser check** and the legacy comparison browser check. The only skipped step is
 `Keep browser failure traces`, which is `if: failure()` and correctly did not run.
+
+A second run, [42762344909](https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/runs/42762344909),
+was triggered by the follow-up commit `167edf3` and also reported **success on all three
+runners**. It covers a documentation-only change, so it confirms the workflow is repeatable
+rather than adding platform evidence.
 
 **What this CI run qualifies:** the regression suite and all three browser checks now pass on
 **native Linux and native macOS**, not only on this Windows workstation. The demo journey added
