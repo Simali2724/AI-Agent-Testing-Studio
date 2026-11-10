@@ -1806,4 +1806,32 @@ T-051 (owner approvals: distribution rights, the third-party company reference d
 monitored security route) and T-052 (native Linux/macOS/Docker, pacing stress) remain
 **Blocked**. Human Judge calibration remains external work, so no Judge in this release is
 calibrated. None of these is a defect the audit demonstrated, and none was marked Done.
-Nothing was pushed, published or made visible.
+
+### Pushed, and remote CI ran green
+
+This repair was local until the owner explicitly instructed a push. The
+`codex/open-source-release` branch was then pushed to the already-public `origin` as a new
+branch at `9893785` — eight commits, four from this task and four from the 2026-11-09 candidate
+that had never been pushed. Pre-push checks: no credential-shaped strings anywhere in the range,
+no `.env`, archive, database or `runtime/` path, and the third-party company name T-051 gates was
+confirmed already public on `origin/master`, so the push did not newly expose it. The remote ref
+was verified equal to local HEAD. No tag, GitHub Release or package was published.
+
+The push triggered [42759604031](https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/runs/42759604031): **conclusion success**, attempt 1, on exactly this commit.
+
+| Runner         | Result      | Duration |
+| -------------- | ----------- | -------- |
+| ubuntu-latest  | **success** | 3.3 min  |
+| macos-latest   | **success** | 4.2 min  |
+| windows-latest | **success** | 4.4 min  |
+
+Every step passed on every platform — Ruff, Prettier, JS syntax, Studio navigation, the full
+pytest suite, the current-shell browser check, the **new demo journey browser check** and the
+legacy comparison check. The only skipped step is the `if: failure()` artifact upload. **This is
+the first remote CI run ever observed for this project**; every earlier record correctly refused
+to treat the committed workflow as evidence.
+
+What it qualifies: the suite and all three browser checks on **native Linux and macOS**. What it
+does not: CI builds from the lockfiles and never runs `start.sh`, so launcher startup, scanner
+provisioning, container build and local Judge discovery on those platforms stay unverified.
+T-032 and T-052 remain Blocked and no Judge is calibrated.

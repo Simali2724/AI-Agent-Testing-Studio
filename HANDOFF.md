@@ -18,10 +18,24 @@ top of it:
 | `47eaf87` | The final-tree suite timing and the contrast measurement in `verification.md` — **the last commit touching a shipped file** |
 | `HEAD`    | The final artifact hashes, in non-shipped local history                                                                     |
 
-Remote `origin` is `https://github.com/Simali2724/AI-Agent-Testing-Studio.git`, which is
-**already public**. **Nothing was pushed, tagged, published or made visible by this task.**
-The commits are local only. No provider credential was used and no paid, cloud or local-model
-call was made.
+Remote `origin` is `https://github.com/Simali2724/AI-Agent-Testing-Studio.git`, which was
+**already public**.
+
+**The branch was pushed, on the owner's explicit instruction.** It is now
+`origin/codex/open-source-release` at `9893785`, a new remote branch carrying eight commits —
+four from this task and four from the 2026-11-09 candidate that had never been pushed. The
+remote ref was verified equal to local HEAD. **No tag, GitHub Release or package was
+published**, and no provider credential was used; no paid, cloud or local-model call was made.
+
+Pre-push checks, all clean: no credential-shaped strings in the pushed range, no `.env`,
+archive, database or `runtime/` path, and the third-party company name T-051 gates was already
+public on `origin/master`.
+
+**Remote CI then ran green for the first time in this project's history.** [42759604031](https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/runs/42759604031), attempt 1,
+triggered by the push: **success on ubuntu-latest (3.3 min), macos-latest (4.2 min) and
+windows-latest (4.4 min)**. Every step passed on every platform, including the full suite and
+all three browser checks. Read the limits in `docs/verification.md`: CI never runs `start.sh`,
+so T-032 and T-052 are still Blocked.
 
 ### Which checkout this repair was applied to, and why
 
@@ -127,8 +141,9 @@ None of these is a defect the audit demonstrated, and none was marked Done:
 - **Human Judge calibration.** The mechanics are complete (T-053); no real labels exist, so
   **no Judge in this release is calibrated**. The demo says nothing about Judge accuracy
   because no Judge runs in it.
-- **Remote CI.** `.github/workflows/quality.yml` now runs `scripts/check-demo-journey.py`, but
-  no remote job has been observed on any platform. A committed workflow file is not evidence.
+- **Remote CI — now observed and green.** [42759604031](https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/runs/42759604031) passed on all three runners, so this is no
+  longer outstanding. It qualifies the suite and browser checks on native Linux and macOS; it
+  does not run `start.sh`, so it does not qualify the launcher or scanners there.
 - **Publication.** A separate, explicitly authorized action. Not taken.
 
 ### Exact next steps
@@ -138,7 +153,10 @@ None of these is a defect the audit demonstrated, and none was marked Done:
    `tests/test_release_manifest.py`). It was scanned for credential-shaped strings and
    workstation paths; two workstation paths were generalised out of the shipped
    `docs/verification.md` before committing.
-2. Decide whether to push. Nothing requires it, and `origin` is public.
+2. **Done:** pushed on the owner's instruction, and remote CI passed on all three platforms.
+   If a pull request into `master` is wanted, the branch is ready; `gh` on this machine is not
+   authenticated, so `gh pr create` needs `gh auth login` run interactively by the owner first.
+   Do **not** tag a release or publish a package until T-051's owner decisions are recorded.
 3. If a live provider smoke test is wanted, ask for the specific credential and data-sharing
    consent at that point. Keep it transient; never print or commit it. It is **not** needed for
    anything in this task.

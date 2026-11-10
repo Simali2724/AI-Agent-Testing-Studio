@@ -431,4 +431,57 @@ Unchanged by this task, and not closed by it:
   company reference decision, and a monitored security reporting route.
 
 None of these four is a defect the 2026-11-10 audit demonstrated, and none may be marked Done
-from an offline repair. Nothing was pushed, published or made visible by this task.
+from an offline repair.
+
+### The branch was pushed, and remote CI ran green — 2026-11-10
+
+Originally this task pushed nothing. The owner then **explicitly instructed a push**, so the
+`codex/open-source-release` branch was pushed to the already-public `origin`
+(`Simali2724/AI-Agent-Testing-Studio`) as a new branch at commit `9893785`. Eight commits went
+up, four from this task and four from the 2026-11-09 candidate that had never been pushed.
+
+Before pushing: the whole range was scanned for credential-shaped strings (Google, OpenAI-style,
+GitHub, Slack, AWS and PEM headers) with **no hits**; no `.env`, archive, database or `runtime/`
+path was in the range; and the third-party company name that T-051 still gates was confirmed
+**already public on `origin/master`** in three files, so the push did not newly expose it.
+
+| Field          | Value                                                     |
+| -------------- | --------------------------------------------------------- |
+| Remote ref     | `refs/heads/codex/open-source-release` at `9893785`       |
+| Verified       | Remote ref equals local HEAD                              |
+| Commits pushed | 8 (54 files)                                              |
+| Tag or Release | **None.** No tag, GitHub Release or package was published |
+
+**This is the first remote CI run ever observed for this project.** Every earlier record
+correctly said a committed workflow file was not evidence that a job had run. One has now run:
+run [42759604031](https://github.com/Simali2724/AI-Agent-Testing-Studio/actions/runs/42759604031), attempt 1, on commit `9893785`, triggered by the push, **conclusion success on all three platforms**.
+
+| Runner         | Result      | Duration |
+| -------------- | ----------- | -------- |
+| ubuntu-latest  | **success** | 3.3 min  |
+| macos-latest   | **success** | 4.2 min  |
+| windows-latest | **success** | 4.4 min  |
+
+Every step succeeded on every platform: Ruff format and lint, Prettier, JavaScript syntax,
+Studio navigation, the **full pytest suite**, the current-shell browser check, the **new demo
+journey browser check** and the legacy comparison browser check. The only skipped step is
+`Keep browser failure traces`, which is `if: failure()` and correctly did not run.
+
+**What this CI run qualifies:** the regression suite and all three browser checks now pass on
+**native Linux and native macOS**, not only on this Windows workstation. The demo journey added
+by T-054 passes on all three.
+
+**What it does not qualify, so T-032 and T-052 stay Blocked:** CI builds its own environment
+from the lockfiles and **never runs `start.sh`**. Fresh-machine startup from an extracted
+archive, browser system-dependency provisioning on a clean machine, local Judge discovery, a
+container build, the White scanners and any real provider call remain unexercised. Bounded
+parallel pacing stress remains **Not tested**. No Judge is calibrated. These are narrower gaps
+than before, not closed ones.
+
+| Platform         | Status after this run                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| Windows 11       | Qualified locally: locked install, launcher start, demo, suite, packaging. Also green in CI             |
+| Linux (native)   | **Suite and browser checks qualified in CI.** `start.sh`, scanners and container still **not executed** |
+| macOS (native)   | **Suite and browser checks qualified in CI.** `start.sh` and scanners still **not executed**            |
+| Docker container | **Not qualified.** No image was built                                                                   |
+| Remote CI        | **Observed, green.** Success on all three runners, attempt 1                                            |

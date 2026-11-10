@@ -10,7 +10,12 @@ loosely; versions are not yet semantic because no public API is promised.
 
 Repairs for the five defects an offline release-candidate audit reproduced in
 this checkout. The sixth finding, a failing Prettier gate, was already green
-here. Nothing in this entry was published.
+here.
+
+The branch carrying this candidate was pushed to the already-public repository on the owner's
+explicit instruction, and remote CI passed on Windows, Ubuntu and macOS. **No tag, GitHub
+Release or package was published**, and the owner decisions that gate a release are still
+outstanding.
 
 ### Added
 
