@@ -12,6 +12,7 @@ import httpx
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import database as db
@@ -422,6 +423,16 @@ async def start(config: Settings):
     from .blackbox.studio_engine import audit
 
     audit(run, "ownership_confirmed", written_permission_or_owner=True)
+    if config._demo_fixture:
+        # Recorded before dispatch, so the audit chain shows this Run came from the
+        # bundled fixture rather than from a chatbot somebody owns.
+        audit(
+            run,
+            "synthetic_demo",
+            fixture=demo_bot.disclosure()["fixture"],
+            bot=demo_bot.DEMO_URL,
+            judge_enabled=False,
+        )
     if config._reproduced_from:
         from .blackbox.studio_engine import audit
 
@@ -767,8 +778,60 @@ def demo_case_set():
         "response_field": "answer",
         "judge_enabled": False,
         "start_command": "python scripts/demo_bot.py",
+        "start_commands": demo_bot.start_commands(),
+        "expected": demo_bot.DEMO_EXPECTED,
         "disclosure": demo_bot.DEMO_LABEL,
     }
+
+
+class DemoRun(BaseModel):
+    """The only thing a demo caller supplies: explicit consent to send messages.
+
+    No evaluation configuration is accepted. `demo_bot.demo_config()` builds the
+    settings on the server, so this action cannot be aimed at a real chatbot, a
+    real provider or a different case set.
+    """
+
+    model_config = {"extra": "forbid"}
+    consent: bool = False
+
+
+@app.post("/api/blackbox/demo/runs")
+async def start_demo(request: DemoRun):
+    """Run the bundled synthetic demo against the loopback demo bot.
+
+    Separate from `POST /api/blackbox/runs` on purpose. A normal evaluation keeps
+    every one of its own validations, including the required AI Judge for the
+    simple protocol; this route neither relaxes nor reuses them. It also refuses
+    before planning when the demo bot is not running, rather than recording a
+    Run full of connection failures.
+    """
+    if not request.consent:
+        raise HTTPException(
+            422,
+            "Allow Studio to send the demo test messages to the bundled demo bot first.",
+        )
+    command = demo_bot.start_command()
+    try:
+        async with httpx.AsyncClient(timeout=3, trust_env=False) as client:
+            response = await client.get(demo_bot.DEMO_HEALTH_URL)
+            response.raise_for_status()
+            body = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(
+            422,
+            f"The synthetic demo bot is not answering on {demo_bot.DEMO_URL}. Start it in a "
+            f"second terminal with: {command}",
+        ) from exc
+    if not isinstance(body, dict) or body.get("service") != "studio-synthetic-demo":
+        raise HTTPException(
+            422,
+            f"Something other than the bundled demo bot is listening on port "
+            f"{demo_bot.DEMO_PORT}. Free that port, then start the demo bot with: {command}",
+        )
+    config = demo_bot.demo_config()
+    started = await start(config)
+    return {**started, "synthetic_demo": demo_bot.disclosure()}
 
 
 @app.delete("/api/blackbox/runs/{ident}")

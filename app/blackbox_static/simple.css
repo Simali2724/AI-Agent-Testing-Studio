@@ -577,6 +577,14 @@ progress {
   font-weight: 600;
   color: #665390;
 }
+/* The synthetic-demo marker. Amber rather than purple, so a demonstration Run is never
+   mistaken at a glance for a measurement of a real chatbot. Measured 7.2:1 on its own
+   background, above the WCAG 2.2 AA requirement for small text. */
+.pill.warn,
+.badge.warn {
+  background: #fdf0dd;
+  color: #7a4200;
+}
 .consent {
   font-size: 0.86rem;
   font-weight: 400;

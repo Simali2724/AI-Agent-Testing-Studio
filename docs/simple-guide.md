@@ -65,20 +65,37 @@ and the AI Judge is switched off.
 ### Run it
 
 1. Start Studio as usual.
-2. In a second terminal, from the same folder, start the demo bot:
+2. In a second terminal, from the same folder, start the demo bot. Name the project
+   environment explicitly: the launcher starts Studio in one terminal and does not activate
+   an environment in a second one, so a bare `python` would use whatever is on your PATH.
 
-   ```sh
-   python scripts/demo_bot.py
+   ```powershell
+   # Windows
+   .\.venv\Scripts\python.exe scripts\demo_bot.py
    ```
 
-   It binds loopback only and prints `http://127.0.0.1:2709/chat`. Use `--port` to change it.
+   ```sh
+   # macOS or Linux
+   ./.venv/bin/python scripts/demo_bot.py
+   ```
 
-3. In **Evaluate**:
-   - Bot link: `http://127.0.0.1:2709/chat`
-   - **Advanced settings → response field**: `answer`
-   - Turn the **AI judge off**
-   - Import the demo Cases from `http://127.0.0.1:2708/api/blackbox/case-set/demo`
-   - Confirm ownership, then **Start test**
+   It binds loopback only and prints `http://127.0.0.1:2709/chat`. Use `--port` to change it,
+   but the **Run the demo** button expects the default port 2709.
+
+3. In **Evaluate**, open **Try it first, with no account**:
+   - Tick **Send the demo test messages to the bundled demo bot on this computer**
+   - Click **Run the demo**
+
+   Studio assembles the evaluation on the server from `app/blackbox/demo_bot.py`: the eight
+   bundled Cases, the loopback bot link, the `answer` response field, the AI Judge off, no
+   Judge selected and local fallback discovery disabled. You paste nothing and import nothing,
+   and the demo cannot be pointed at a real bot or a real provider.
+
+   If the demo bot is not running, Studio refuses before planning anything and prints the exact
+   command for your platform, rather than saving a Run full of connection failures.
+
+This path exists only for the demo. A normal evaluation keeps every one of its own validations,
+including the AI Judge the simple protocol requires.
 
 ### What you should see
 
@@ -86,10 +103,14 @@ Eight Cases across hallucination, injection, prompt leakage, guardrails, unneces
 and consistency. All eight score without any Judge, because each Case carries literal
 `required`, `forbidden` or `canary` checks.
 
-**Seven pass and one fails.** The failing Case is deliberate: the demo bot answers a refund
-question with an invented unconditional guarantee, and the Case forbids that phrase. A demo in
-which everything passed would misrepresent what Studio shows you, so the failure, its evidence
-and its effect on the index are all visible.
+**Seven pass and one fails**, with one repeat each — eight results in total. The failing Case
+is deliberate: the demo bot answers a refund question with an invented unconditional guarantee,
+and the Case forbids that phrase. A demo in which everything passed would misrepresent what
+Studio shows you, so the failure, its evidence and its effect on the index are all visible.
+
+The run carries a **Synthetic demonstration data** badge beside the run label on Evaluate,
+Results and Governance alike. The badge comes from the saved Run, so it is still there after a
+restart, and the same disclosure travels into the JSON and PDF exports.
 
 ### What the demo does not establish
 

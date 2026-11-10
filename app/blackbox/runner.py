@@ -295,6 +295,13 @@ def make_run(config):
             "Browser completion uses stable assistant text and may not support all streaming widgets.",
         ],
     }
+    if config._demo_fixture:
+        # Saved with the Run, so the synthetic label survives a restart and reaches the
+        # dashboard, Governance and both exports instead of being a transient banner.
+        from . import demo_bot
+
+        run["synthetic_demo"] = demo_bot.disclosure()
+        run["limitations"] = [demo_bot.DEMO_LABEL, *run["limitations"]]
     if config.simple_mode:
         # What the panel was allowed to do, stated rather than inferred from which judges happen
         # to appear in the results.

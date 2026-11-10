@@ -4,16 +4,29 @@ import importlib.util
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path, PurePosixPath
 
 import pytest
 
-_SPEC = importlib.util.spec_from_file_location(
-    "package_release", Path(__file__).parents[1] / "scripts" / "package_release.py"
-)
-packager = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(packager)
+SCRIPTS = Path(__file__).parents[1] / "scripts"
+# The packager and the documentation checker import each other through this
+# directory, so it must be importable before either is loaded by path.
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+
+def _load(name):
+    spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault(name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+packager = _load("package_release")
+check_docs = _load("check_docs")
 
 
 def write(root, name, data="source\n"):
@@ -303,6 +316,106 @@ def test_archived_readme_links_resolve_inside_the_archive(tmp_path):
         }
     )
     assert not broken, f"README links files absent from the archive: {broken}"
+
+
+def test_the_extracted_archive_passes_its_own_documentation_checker(tmp_path):
+    """The distribution contract: the artifact must be self-consistent, not just the checkout.
+
+    The working checkout passed while the extracted archive carried four broken
+    links, because `docs/Rules.md` linked the local working history that the
+    manifest deliberately excludes. This builds the real archive, extracts it to
+    a fresh directory and runs the **archive's own** checker against it.
+    """
+    root = tracked_copy(tmp_path)
+    output = tmp_path / "candidate.zip"
+    packager.package_release(root, output)
+    extracted = tmp_path / "extracted"
+    extracted.mkdir()
+    with zipfile.ZipFile(output) as archive:
+        archive.extractall(extracted)
+
+    checker = extracted / "scripts" / "check_docs.py"
+    assert checker.is_file(), "The archive must ship its own documentation checker"
+    # -I keeps the checker from importing anything outside its own extracted tree.
+    result = subprocess.run(
+        [sys.executable, "-I", str(checker), "--root", str(extracted)],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert result.returncode == 0, (
+        f"The extracted archive fails its own documentation checker:\n{result.stderr}"
+    )
+    assert "Documentation checks passed" in result.stdout
+
+
+def test_every_maintained_document_in_the_archive_is_checked_not_only_the_readme(tmp_path):
+    """Archive link coverage must cover all shipped documents, README included."""
+    root = tracked_copy(tmp_path)
+    output = tmp_path / "candidate.zip"
+    packager.package_release(root, output)
+    extracted = tmp_path / "extracted"
+    extracted.mkdir()
+    with zipfile.ZipFile(output) as archive:
+        names = set(archive.namelist())
+        archive.extractall(extracted)
+
+    sys.path.insert(0, str(extracted / "scripts"))
+    spec = importlib.util.spec_from_file_location(
+        "archived_check_docs", extracted / "scripts" / "check_docs.py"
+    )
+    checker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(checker)
+    try:
+        covered = {
+            path.relative_to(extracted).as_posix() for path in checker.markdown_files(extracted)
+        }
+        shipped = {name for name in names if name.casefold().endswith(".md")}
+        assert covered == shipped, (
+            "The archive's checker must cover every shipped Markdown document: "
+            f"missed {sorted(shipped - covered)}, invented {sorted(covered - shipped)}"
+        )
+        assert "README.md" in covered and "docs/Rules.md" in covered
+        assert not checker.check_docs(extracted)
+    finally:
+        sys.path.remove(str(extracted / "scripts"))
+        sys.modules.pop("archived_check_docs", None)
+
+
+def test_a_shipped_document_linking_an_excluded_file_is_rejected(tmp_path):
+    """The checker must catch this class of defect in the checkout, before packaging."""
+    root = tmp_path / "studio"
+    for name in ("Architecture.md", "Design.md"):
+        write(root, f"docs/{name}", "# Doc\n")
+    write(root, "docs/PRD.md", "# PRD\n\nFR-01 requirement.\n")
+    write(root, "docs/tasks.md", "# Tasks\n\nCovers FR-01.\n")
+    write(root, "PROGRESS.md", "# Local history\n")
+    write(root, "docs/Rules.md", "# Rules\n\nStart with [history](../PROGRESS.md).\n")
+
+    errors = check_docs.check_docs(root)
+    assert any("source archive excludes" in error for error in errors), errors
+    assert any("docs/Rules.md" in error.replace("\\", "/") for error in errors), errors
+
+    # Replacing the link with a plain mention clears it, without deleting history.
+    write(root, "docs/Rules.md", "# Rules\n\nStart with the root `PROGRESS.md`.\n")
+    assert (root / "PROGRESS.md").is_file(), "local history must survive the fix"
+    assert not [error for error in check_docs.check_docs(root) if "source archive" in error]
+
+
+def test_private_files_stay_out_of_the_archive_even_as_link_targets(tmp_path):
+    """Required-file inclusion and private-file exclusion are both proven here."""
+    root = tracked_copy(tmp_path)
+    output = tmp_path / "candidate.zip"
+    packager.package_release(root, output)
+    with zipfile.ZipFile(output) as archive:
+        names = set(archive.namelist())
+    for name in REQUIRED_IN_RELEASE:
+        assert name in names, f"The archive omits a documented setup file: {name}"
+    for name in EXCLUDED_FROM_RELEASE:
+        assert name not in names, f"The archive leaked local working history: {name}"
+    assert not [name for name in names if name.startswith("runtime/")]
+    assert ".env" not in names
+    assert not [name for name in names if PurePosixPath(name).name == ".env"]
 
 
 def test_manifest_did_not_become_a_wildcard(tmp_path):

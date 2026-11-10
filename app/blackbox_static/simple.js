@@ -903,7 +903,55 @@ async function boot() {
   await loadHistory();
   await poll();
   $("start").disabled = false;
+  await loadDemo();
 }
+/* The no-key demo. Deliberately a separate action from Start test: it posts no evaluation
+   configuration at all, so it cannot be aimed at a real bot or a real provider, and the
+   ordinary judge validation on Start test is untouched. */
+async function loadDemo() {
+  try {
+    const demo = await api("/api/blackbox/case-set/demo", undefined, "GET");
+    const expected = demo.expected || {};
+    $("demo-expected").textContent =
+      `${demo.cases.length} Cases, ${expected.repeats ?? 1} repeat each: ` +
+      `${expected.passed ?? 0} pass and ${expected.failed ?? 0} fails on purpose. ` +
+      `Bot: ${demo.target_url}. Judge calls: 0.`;
+    $("demo-command-windows").textContent =
+      "Windows:  " + (demo.start_commands?.windows || demo.start_command);
+    $("demo-command-posix").textContent =
+      "macOS/Linux:  " + (demo.start_commands?.posix || demo.start_command);
+    $("demo-start").disabled = false;
+  } catch (error) {
+    $("demo-status").textContent = "The demo Cases could not be loaded: " + error.message;
+  }
+}
+$("demo-start").onclick = async () => {
+  if (!$("demo-consent").checked) {
+    $("demo-status").textContent =
+      "Tick the box above to allow the demo test messages to the bundled demo bot.";
+    return;
+  }
+  $("demo-start").disabled = true;
+  $("demo-status").textContent = "Starting the demo…";
+  try {
+    const result = await api("/api/blackbox/demo/runs", { consent: true });
+    runId = result.id;
+    /* Notifying selection, so the Results view switches to this Black-box Run rather than
+       staying on the assurance tab that has no assessment to show. */
+    window.StudioUI.selectRun(runId);
+    window.StudioUI.navigate("results");
+    $("demo-status").textContent = `Demo started: ${result.planned_cases} Cases.`;
+    tell("Synthetic demo started. No AI judge and no provider is used.");
+    await poll();
+    await loadHistory();
+  } catch (error) {
+    /* The server returns the exact per-platform start command when the bot is not up. */
+    $("demo-status").textContent = error.message;
+    tell(error.message);
+  } finally {
+    $("demo-start").disabled = false;
+  }
+};
 document.querySelectorAll("[data-mode]").forEach((e) => e.addEventListener("change", syncSetup));
 $("add-bot").onclick = addBot;
 $("start").onclick = async () => {

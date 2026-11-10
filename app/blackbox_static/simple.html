@@ -49,6 +49,7 @@
           </select>
         </div>
         <span id="run-label" class="pill">No run selected</span>
+        <span id="synthetic-badge" class="pill warn" hidden></span>
         <div class="actions">
           <a class="button" href="#results" data-view="results">View selected run results</a>
           <button id="refresh-run" type="button">Refresh</button>
@@ -62,6 +63,43 @@
           <h1 tabindex="-1">How well does your bot help people?</h1>
           <p>Add a bot, choose what to check, and get a clear report. Compare up to four bots.</p>
         </div>
+        <section id="demo-section" aria-labelledby="demo-heading">
+          <h2 id="demo-heading">Try it first, with no account</h2>
+          <p>
+            Run Studio against its own bundled demo bot on this computer. The eight prepared Cases
+            carry literal checks, so
+            <strong>no AI judge runs and no provider is called</strong>. Nothing is billed. One Case
+            fails on purpose, because a demo where everything passes would misrepresent what this
+            tool shows you.
+          </p>
+          <p class="helper" id="demo-expected" aria-live="polite"></p>
+          <details id="demo-setup">
+            <summary>Start the demo bot first</summary>
+            <p class="helper">
+              The demo bot is a separate loopback process, so Studio reaches it through the ordinary
+              API connector. Run this in a second terminal, from the project folder:
+            </p>
+            <pre id="demo-command-windows"></pre>
+            <pre id="demo-command-posix"></pre>
+            <p class="helper">
+              The launcher does not open a second terminal for you. Use the project virtual
+              environment, not whichever Python is on your PATH.
+            </p>
+          </details>
+          <label class="consent"
+            ><input type="checkbox" id="demo-consent" />Send the demo test messages to the bundled
+            demo bot on this computer. No AI judge, no provider, no charge.</label
+          >
+          <div class="actions">
+            <button id="demo-start" type="button" disabled>Run the demo</button>
+          </div>
+          <p class="helper" id="demo-status" role="status" aria-live="polite"></p>
+          <p class="helper">
+            Demo results are <strong>synthetic demonstration data</strong>. They show how Results,
+            evidence, Governance and exports behave; they are not a measurement of any real chatbot,
+            and they say nothing about AI judge accuracy, because no judge runs.
+          </p>
+        </section>
         <section aria-labelledby="bots-heading">
           <h2 id="bots-heading"><span class="step">1</span>Add your bots</h2>
           <p>Choose a test type, then add your bot below.</p>

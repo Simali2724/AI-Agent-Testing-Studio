@@ -6,6 +6,63 @@ published release dates. This project has not had a tagged public release yet.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 loosely; versions are not yet semantic because no public API is promised.
 
+## Unreleased — release candidate 0.1.0-rc.2 (2026-11-10)
+
+Repairs for the five defects an offline release-candidate audit reproduced in
+this checkout. The sixth finding, a failing Prettier gate, was already green
+here. Nothing in this entry was published.
+
+### Added
+
+- **The advertised no-key demo is reachable from the shipped interface.** The
+  Evaluate screen has a **Try it first, with no account** card, and
+  `POST /api/blackbox/demo/runs` accepts only a consent boolean and builds the
+  evaluation on the server: AI Judge off, no Judge selected, local fallback
+  discovery disabled, and exactly the eight bundled Cases rather than the
+  ten-Category suite. Measured in a real browser: 8 of 8 scored with no Judge,
+  7 passed and 1 failed, 9 calls to the loopback fixture, **0 judge calls**.
+- `scripts/check-demo-journey.py`: a browser regression that drives that whole
+  journey across two real loopback processes, exports both formats, restarts
+  Studio and reopens the Run, and fails on any request leaving the two loopback
+  ports. It runs in CI.
+- `scripts/build_provenance.py` and `package_release.py --build-manifest`: a
+  build record written beside the archive, holding the finished bytes' SHA-256
+  and the Git state of the tree that produced them.
+- `tests/test_release_manifest.py`: 33 tests for the manifest command, which
+  previously had none of its own.
+
+### Fixed
+
+- **The manifest command could destroy the artifact it described.** Passing one
+  path as both `--artifact` and `--output` exited 0 and rewrote the ZIP as
+  Markdown. The destination is now rejected if it is the artifact by resolved
+  path or by filesystem identity, including through a symlink or hard link, and
+  an existing manifest is preserved unless `--replace` is passed.
+- **Unknown Git provenance was reported as a clean working tree.** Missing Git,
+  a failed `git status`, an unresolvable HEAD and a non-repository source now
+  all produce **Unknown** with a stated reason. Attributing an artifact to a
+  commit requires the build record above; inspection-time repository state is
+  reported separately and labelled as not describing the build.
+- **The archive content digest framed its input ambiguously.** Member names and
+  contents were concatenated without lengths, so two different single-member
+  archives shared a digest. The digest is now the versioned
+  `studio-release-content-v2`, which length-frames every field; duplicate member
+  names are refused. Full artifact SHA-256 behaviour is unchanged, and the
+  version travels with the value because the two are not comparable.
+- **The shipped artifact failed its own documentation checker.** `docs/Rules.md`
+  linked the local working history that the manifest deliberately excludes, so
+  four links broke on extraction while the checkout passed. Rules now names
+  those files without linking them, and `scripts/check_docs.py` fails any
+  shipped document that links an excluded file.
+- A Black-box-only Run's results were invisible in the current shell, because
+  the assurance controller hides them unless its own tab is active.
+
+### Known limitations unchanged by this candidate
+
+Native Linux, macOS and Docker remain **not qualified**; bounded parallel pacing
+stress remains **not tested**; every Judge remains **uncalibrated**; and the
+owner approvals that gate publication remain outstanding.
+
 ## Unreleased — release candidate 0.1.0-rc.1 (2026-11-09)
 
 First candidate prepared for an open-source release. The application itself was

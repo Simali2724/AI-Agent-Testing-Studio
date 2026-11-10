@@ -17,7 +17,7 @@ Last updated: 2026-10-17.
 
 ## Authority and scope
 
-Start with [PROGRESS.md](../PROGRESS.md) and [HANDOFF.md](../HANDOFF.md), then the relevant [tasks](tasks.md). Read only implementation needed for the requested work. [PRD](PRD.md) defines intended behavior; [Architecture](Architecture.md) maps current components; [Design](Design.md) records actual screens. New user instructions govern their authorized task; do not treat historical notes as a request to restart old runs or delete new history.
+Start with the repository's working history — `PROGRESS.md` and `HANDOFF.md` at the repository root — then the relevant [tasks](tasks.md). Those two files are local working history: they are deliberately excluded from the source archive, so a released copy will not contain them and nothing here links to them. In a released copy, start with [tasks](tasks.md) and the [release checklist](release-checklist.md) instead. Read only implementation needed for the requested work. [PRD](PRD.md) defines intended behavior; [Architecture](Architecture.md) maps current components; [Design](Design.md) records actual screens. New user instructions govern their authorized task; do not treat historical notes as a request to restart old runs or delete new history.
 
 These are contributor rules, not a claim that every legacy function already conforms. A **Finding** is an evidence-backed check result, an **Engine** performs checks, a **Judge** evaluates evidence, a **Run** is a saved assessment, a **Case** is a scenario, and a **Category** groups Cases. An **Assurance badge** describes selected evidence modes, never certification. Changes to these meanings need a recorded decision and migration plan for older saved data.
 
@@ -53,10 +53,10 @@ These are contributor rules, not a claim that every legacy function already conf
 2. Inspect Git status and existing instructions. Preserve unrelated modifications and user data. Before a large authorized change, make a scoped restore-point commit after reviewing staged files for secrets. Never commit every file blindly.
 3. Work in a small phase with targeted edits. Use the project's existing style and dependencies. Do not add cloud calls, provider charges, runtime deletion or publication outside the authorized scope.
 4. Run relevant tests and formatting/lint checks. State what was tested, what failed and what was not checked. An available package, adapter or workflow is not proof that a real integration ran.
-5. Update [PROGRESS.md](../PROGRESS.md) after each implementation phase with changed behavior, validation and remaining limits. Record lasting choices in [DECISIONS.md](../DECISIONS.md). Update [tasks](tasks.md) when acceptance criteria change status.
+5. Update the root `PROGRESS.md` after each implementation phase with changed behavior, validation and remaining limits. Record lasting choices in [DECISIONS.md](../DECISIONS.md). Update [tasks](tasks.md) when acceptance criteria change status.
 6. Commit only intended files. Use short imperative subjects; a `docs:`, `fix:` or `feat:` prefix is a recommended convention, not a configured enforcement mechanism. Use `codex/` for a new agent-created branch unless the user specifies another. This documentation task uses the existing `master` branch; it does not require moving existing work.
 7. Do not push merely because a local commit was requested. On an authorized push, check the workflow for the new commit; re-running an old failed job tests the old commit. Branch protection/required-review settings are TODO: confirm.
-8. When roughly 5% of context/token capacity remains, or continued work risks losing context, stop coding and write a self-contained [HANDOFF.md](../HANDOFF.md): actual paths, completed changes, commands/results, known bugs, pending consent and exact next steps. Never include keys.
+8. When roughly 5% of context/token capacity remains, or continued work risks losing context, stop coding and write a self-contained root `HANDOFF.md`: actual paths, completed changes, commands/results, known bugs, pending consent and exact next steps. Never include keys.
 
 ## Tests and definition of done
 

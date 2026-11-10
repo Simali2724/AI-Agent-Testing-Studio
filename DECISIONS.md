@@ -630,3 +630,79 @@ unverified**.
 **Why.** One tested interpreter does not justify "3.12 and newer", and a checked-in `start.sh`
 is not evidence that it runs. The release gate ledger records each gate's real status, including
 the ones that are not met.
+
+### D-OSR-07 — The demo is assembled on the server, not by relaxing validation
+
+**Decision.** The no-key demo has its own route, `POST /api/blackbox/demo/runs`, which accepts
+only a consent boolean and builds the whole evaluation in `demo_bot.demo_config()`. Normal
+evaluations keep every validation they had, including the AI Judge the simple protocol
+requires. The `_demo_fixture` marker is a Pydantic `PrivateAttr`, settable only on the server.
+
+**Why.** The obvious repair — making the Judge optional so the documented journey works — would
+have removed a real guard from every evaluation to fix one demo. Building the demo server-side
+inverts that: there is no configuration for a caller to supply, so the action cannot be aimed at
+a real chatbot, a real provider or a different case set, and nothing about ordinary runs changes.
+A client-settable synthetic flag was rejected for the same reason in reverse: it would let a real
+evaluation be labelled as a demonstration.
+
+**Boundaries.** `auto_local_fallback` is pinned off, because fallback discovery probes an
+installed local model and that is itself a model call. `simple_mode` is off with
+`all_imported_cases` on, so the demo plans its own eight Cases and never the ten-Category suite.
+The demo bot stays a separate loopback process, as decided for T-047; this route health-checks it
+and refuses with the exact per-platform command rather than saving a Run of connection failures.
+
+**Still open.** The demo measures hand-written strings. It establishes nothing about any real
+chatbot and nothing about Judge accuracy, because no Judge runs.
+
+### D-OSR-08 — Unknown provenance is a state, and build attribution needs a build record
+
+**Decision.** Source provenance is one of three explicit states — clean, dirty or unknown.
+Missing Git, a failed `git status`, an unresolvable HEAD and a non-repository source are all
+**unknown**, never clean. Attributing an artifact to a commit requires a build provenance record
+written by the packager (`--build-manifest`) whose recorded SHA-256 matches the artifact's bytes.
+Inspection-time Git state is recorded separately and labelled as not describing the build.
+
+**Why.** The previous code treated "Git did not answer" as "nothing is modified", so a manifest
+built without Git claimed a clean working tree and named `commit unavailable` as the artifact's
+identity. A manifest also runs _after_ packaging: inspecting the repository then cannot show what
+the earlier build contained, so a commit read at manifest time is a guess, and a guess that would
+let an older or unrelated ZIP be presented as the current clean commit. Only a record created
+during the build, bound to the published bytes by hash, is evidence.
+
+**Boundaries.** The record is a plain JSON file beside the archive. It is an integrity aid, not a
+signature: it proves nothing about who built the artifact, and anyone who can rewrite the archive
+can rewrite the record. The artifact's own SHA-256 remains the identity of last resort.
+
+### D-OSR-09 — The content digest is a versioned canonical format
+
+**Decision.** The archive content digest is `studio-release-content-v2`: member names sorted,
+every name and content length-framed, a per-member SHA-256, and the version name printed beside
+the value in the manifest. Duplicate member names are refused rather than hashed.
+
+**Why.** The first version concatenated member names and raw contents with no framing, so
+`{"a": b"bc"}` and `{"ab": b"c"}` produced the same digest. That is an encoding ambiguity, not a
+weakness in SHA-256, and the full artifact hashes always differed — so this was never a way to
+pass off a different archive. It was still a digest that could not be relied on to mean what it
+said. Versioning it is part of the fix: a reader comparing against an older published value must
+be able to see that the values are not comparable.
+
+**Boundaries.** The digest is deliberately blind to ZIP timestamps, member order and compression,
+so it answers "is this the same content" and not "is this the same file". For the file, use the
+SHA-256.
+
+### D-OSR-10 — A document that ships may not link a file that does not
+
+**Decision.** `scripts/check_docs.py` enforces the distribution contract, sharing one
+`packaged()` implementation with `scripts/package_release.py`. `docs/Rules.md` names the root
+`PROGRESS.md` and `HANDOFF.md` as local working history without linking them, and tells a reader
+of a released copy to start from the tasks and the release checklist.
+
+**Why.** The working checkout passed its own link check while the extracted archive carried four
+broken links, because those two files exist locally and are deliberately excluded from the
+archive. A link that resolves only for the maintainer is a defect that only a user discovers.
+Sanitised public stubs were considered and rejected: a stub of a working history is either empty
+or a partial copy of material the gate ledger says must not ship.
+
+**Boundaries.** The local histories are untouched and stay tracked in Git. The contract is checked
+in the checkout _and_ against a real extracted archive, because a checkout check alone is exactly
+what missed this.

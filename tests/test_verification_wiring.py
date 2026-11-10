@@ -115,3 +115,34 @@ def test_no_tracked_script_loads_playwright_from_the_runtime_directory():
             if re.search(r"runtime/ui-check", path.read_text(encoding="utf-8", errors="ignore")):
                 offenders.append(path.name)
     assert not offenders, f"these load Playwright from the gitignored runtime: {offenders}"
+
+
+def test_ci_runs_the_advertised_demo_journey_in_a_browser():
+    """The README's no-key journey is a release claim, so CI must execute it (T-054).
+
+    The defect this guards was a working API demo with no way to reach it from the
+    shipped UI. API tests passed throughout, so only a browser check catches it.
+    """
+    assert "scripts/check-demo-journey.py" in commands(), (
+        "CI must run the demo journey browser check, not only API-level demo tests"
+    )
+
+
+def test_the_demo_journey_check_is_self_contained_and_proves_no_provider_was_called():
+    text = (ROOT / "scripts/check-demo-journey.py").read_text(encoding="utf-8")
+    assert "tempfile.TemporaryDirectory" in text, "it must use a temporary runtime directory"
+    assert "STUDIO_RUNTIME" in text, "it must not touch the owner's saved history"
+    assert "uvicorn" in text, "it must start its own Studio"
+    assert "scripts/demo_bot.py" in text, "it must start the bundled demo bot itself"
+    assert "127.0.0.1" in text, "both servers must stay on loopback"
+    assert "runtime/ui-check" not in text, "it must not load Playwright from the runtime directory"
+    assert "Program Files" not in text, "it must not hardcode a browser path"
+    # The journey itself, driven through the shipped shell.
+    assert "#demo-start" in text and "#demo-consent" in text, "it must drive the demo controls"
+    assert "#case-results" in text, "it must read the Results panel"
+    assert "#synthetic-badge" in text, "it must check the persistent synthetic disclosure"
+    # The boundaries that make the demo free.
+    assert "offsite" in text, "it must fail on any request outside the two loopback ports"
+    assert "judge_calls" in text, "it must assert zero judge calls"
+    assert "format=pdf" in text and "format=json" in text, "both exports must be checked"
+    assert "restart_studio" in text, "the saved Run must be reopened after a restart"

@@ -1,6 +1,132 @@
-## 2026-11-09 — Open-source release candidate 0.1.0-rc.1 (current task)
+## 2026-11-10 — Release-candidate defect repair 0.1.0-rc.2 (current task)
 
 Read this section first; everything below it is dated history.
+
+### Where the work is
+
+```text
+D:\AI-Agent-Testing-Studio
+```
+
+Branch `codex/open-source-release`. Based on `4db73b8`; this task's work is commit
+`REPLACE_WITH_COMMIT` on top of it. Remote `origin` is
+`https://github.com/Simali2724/AI-Agent-Testing-Studio.git`, which is **already public**.
+**Nothing was pushed, tagged, published or made visible by this task.** The commit is local
+only. No provider credential was used and no paid, cloud or local-model call was made.
+
+### Which checkout this repair was applied to, and why
+
+An offline audit dated 2026-11-10 lives in
+`C:\Users\Moinuddeen hussain\Documents\ChatGPT\Moinuddeen_airm\studio-review-20261110`. It ran
+against the leftover temporary clone described in the 2026-11-09 section below —
+`C:\...\Moinuddeen_airm\AI-Agent-Testing-Studio`, HEAD `cfbe8de` plus 34 staged changes —
+because its `D:` Git access was denied. Its own report says so.
+
+Those 34 changes are committed **here** as `178b8c7`, with `84a7767`, `1328912` and `4db73b8`
+on top. So this tree is four commits ahead of what the audit saw. The repair was applied here,
+after confirming each defect still reproduced in this tree rather than taking the audit's word.
+The `C:` clone was left untouched as the audit's snapshot; it can still be deleted, as the
+earlier section says. **Do not apply the audit's fixes to the `C:` clone and merge it back** —
+it would revert four commits.
+
+### What was repaired (T-054)
+
+Five of the audit's six findings reproduced here and were fixed. Full detail is in
+`docs/tasks.md` under T-054, `PROGRESS.md` under the 2026-11-10 phase, `DECISIONS.md` under
+D-OSR-07 to D-OSR-10, and `docs/verification.md` under the 2026-11-10 section.
+
+| Audit ticket     | State here                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1 — demo UI      | **Fixed.** New `POST /api/blackbox/demo/runs` plus a demo card in Evaluate; browser regression added        |
+| 2 — overwrite    | **Fixed.** The manifest refuses its own input by path and by filesystem identity, and keeps existing output |
+| 3 — provenance   | **Fixed.** clean / dirty / **unknown** states; commit attribution requires a build record                   |
+| 4 — digest       | **Fixed.** Versioned `studio-release-content-v2` with length framing; duplicates refused                    |
+| 5 — archive docs | **Fixed.** `docs/Rules.md` no longer links excluded history; the checker enforces the contract              |
+| 6 — formatting   | **Already green here.** Formatted by `178b8c7`–`4db73b8`, which the audit could not read                    |
+
+### Commands that qualify this work, and their results
+
+Run serially from `D:\AI-Agent-Testing-Studio`, machine otherwise idle. The benchmark ran
+inside the suite with no browser work alongside it.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip check                                            # no broken requirements
+.\.venv\Scripts\python.exe -m ruff check app tests scripts sample_project          # passed
+.\.venv\Scripts\python.exe -m ruff format --check app tests scripts sample_project # 139 files formatted
+npm run format:check                                                               # exit 0
+npm run check:js                                                                   # 16 files
+npm run test:ui                                                                    # 23 passed, 0 failed
+.\.venv\Scripts\python.exe scripts/check_docs.py                                   # 34 documents
+.\.venv\Scripts\python.exe -m pytest -q                                            # 897 passed, 1 skipped, 157.45 s
+.\.venv\Scripts\python.exe scripts/check-studio-ui.py --artifacts runtime/ui-artifacts
+.\.venv\Scripts\python.exe scripts/check-demo-journey.py --artifacts runtime/ui-artifacts
+.\.venv\Scripts\python.exe scripts/check-exact-compare.py
+git diff --check                                                                   # clean
+```
+
+Browser checks all passed with `browser_errors: []`. The demo journey reported
+`judge_calls: 0`, `bot_calls: 9`, `offsite_requests: []`, a 59793-byte PDF and
+`reopened_after_restart: passed`. The legacy comparison check reported `provider_calls: 0`.
+The suite grew from **817 passed, 1 skipped** to **897 passed, 1 skipped** — 80 new tests. The
+single skip is still the symlink-capability test; the single warning is still the Starlette
+`TestClient` deprecation.
+
+### The candidate artifact
+
+Rebuilt after every edit in this task, from a clean tree:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/package_release.py --root . `
+  --output runtime/release/ai-agent-studio-0.1.0-rc2.zip `
+  --build-manifest runtime/release/ai-agent-studio-0.1.0-rc2.build.json
+.\.venv\Scripts\python.exe scripts/release_manifest.py `
+  --artifact runtime/release/ai-agent-studio-0.1.0-rc2.zip --version 0.1.0-rc.2 `
+  --evidence docs/verification.md `
+  --build-manifest runtime/release/ai-agent-studio-0.1.0-rc2.build.json
+```
+
+`runtime/` is gitignored, so the artifact, its build record and its manifest are **not** in
+Git. The hashes are in `PROGRESS.md` and in the manifest beside the artifact. `--build-manifest`
+is now the only way the manifest will attribute an artifact to a commit; without it the manifest
+correctly reports source provenance as Unknown.
+
+### What is still outstanding — unchanged by this task
+
+None of these is a defect the audit demonstrated, and none was marked Done:
+
+- **T-051 — Blocked.** Owner decisions: written confirmation of distribution rights, the
+  decision on the published third-party company references in UI labels, auto-detection logic,
+  API route names and case-pack filenames, and a security reporting route the owner monitors.
+- **T-052 / T-032 — Blocked.** Native Linux and macOS startup, a Docker build, scanner
+  provisioning, and bounded parallel pacing stress at 50 of 50. Only Windows was exercised.
+  The pacing harness lives in the separate `studio-publish` tree and its results are not this
+  candidate's.
+- **Human Judge calibration.** The mechanics are complete (T-053); no real labels exist, so
+  **no Judge in this release is calibrated**. The demo says nothing about Judge accuracy
+  because no Judge runs in it.
+- **Remote CI.** `.github/workflows/quality.yml` now runs `scripts/check-demo-journey.py`, but
+  no remote job has been observed on any platform. A committed workflow file is not evidence.
+- **Publication.** A separate, explicitly authorized action. Not taken.
+
+### Exact next steps
+
+1. Review `git show` for this task's commit. It touches 26 files and adds three
+   (`scripts/build_provenance.py`, `scripts/check-demo-journey.py`,
+   `tests/test_release_manifest.py`). It was scanned for credential-shaped strings and
+   workstation paths; two workstation paths were generalised out of the shipped
+   `docs/verification.md` before committing.
+2. Decide whether to push. Nothing requires it, and `origin` is public.
+3. If a live provider smoke test is wanted, ask for the specific credential and data-sharing
+   consent at that point. Keep it transient; never print or commit it. It is **not** needed for
+   anything in this task.
+4. Close T-051 and T-052 only with real owner decisions and real native/stress evidence.
+
+---
+
+## 2026-11-09 — Open-source release candidate 0.1.0-rc.1 (historical)
+
+Superseded by the 2026-11-10 section above. Its statement that the 34 release changes were
+"staged but uncommitted" was true when written; they were committed as `178b8c7`.
 
 ### Where the work is
 

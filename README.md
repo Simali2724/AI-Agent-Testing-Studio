@@ -48,19 +48,27 @@ First install downloads dependencies and a browser, so it is bandwidth-bound rat
 
 Studio ships a deterministic synthetic chatbot, so you can complete a real evaluation with no provider account and no chatbot of your own.
 
-**1.** In a second terminal, start the demo bot:
+**1.** In a second terminal, start the demo bot. The launcher does not open or activate a second terminal for you, so use the project environment explicitly rather than whichever Python is on your PATH:
+
+```powershell
+# Windows, from the project folder
+.\.venv\Scripts\python.exe scripts\demo_bot.py
+```
 
 ```sh
-python scripts/demo_bot.py
+# macOS or Linux, from the project folder
+./.venv/bin/python scripts/demo_bot.py
 ```
 
 It serves `http://127.0.0.1:2709/chat` and prints that address.
 
-**2.** In Studio's **Evaluate** screen, paste `http://127.0.0.1:2709/chat` as the bot link, set the response field to `answer` under **Advanced settings**, switch the **AI judge off**, import the demo Cases from `http://127.0.0.1:2708/api/blackbox/case-set/demo`, confirm ownership, and click **Start test**.
+**2.** In Studio's **Evaluate** screen, open **Try it first, with no account**, tick the consent box and click **Run the demo**. Studio builds the whole demo itself: the bundled Cases, the loopback bot link, the response field, and the **AI judge switched off**. There is nothing to paste and nothing to import.
 
 Scoring uses the deterministic literal checks carried by those Cases, so **no provider is called and nothing is billed**. The demo deliberately includes a Case the bot fails, because a demo where everything passes would misrepresent what the tool shows you.
 
-Measured on this candidate: 8 Cases, 8 of 8 scored with no Judge — 7 passed, 1 failed — exported as JSON and PDF, then reopened unchanged after a restart.
+Measured on this candidate: 8 Cases, one repeat each, 8 of 8 scored with no Judge — 7 passed, 1 failed — 9 calls to the loopback demo bot and **0 judge calls**, exported as JSON and PDF, then reopened unchanged after a restart. The journey is covered by a browser regression, `scripts/check-demo-journey.py`.
+
+Only the demo is assembled this way. A normal evaluation still validates its own settings, including the AI judge it needs; the demo does not relax that.
 
 Demo results are **synthetic demonstration data**. They show how Results, evidence, Governance and exports behave; they are not a measurement of any real chatbot. See [the simple guide](docs/simple-guide.md) for the walkthrough.
 

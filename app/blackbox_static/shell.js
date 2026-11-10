@@ -190,6 +190,15 @@
       ).length;
       document.getElementById("run-label").textContent =
         `${run.targets?.map((b) => b.name).join(" vs ") || "Evaluation"} · ${run.status.replaceAll("_", " ")} · ${scored}/${results.length} scored · ${run.id.slice(0, 8)}`;
+      /* Saved on the Run itself, so the synthetic label survives a restart and shows on
+         every view — Evaluate, Results and Governance share this toolbar. */
+      const badge = document.getElementById("synthetic-badge");
+      if (badge) {
+        const synthetic = run.synthetic_demo;
+        badge.hidden = !synthetic;
+        badge.textContent = synthetic ? synthetic.label || "Synthetic demonstration data" : "";
+        badge.title = synthetic?.note || "";
+      }
     },
   };
   show(readView());

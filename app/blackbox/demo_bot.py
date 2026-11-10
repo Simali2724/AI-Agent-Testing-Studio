@@ -12,13 +12,20 @@ Boundaries that make this honest:
 * Scoring uses the deterministic literal checks already supported by imported
   cases, with the AI Judge switched off. No Judge verdict is fabricated, and
   the absence of a Judge is visible rather than hidden.
-* The demo deliberately contains failing and passing Cases. A demo in which
-  everything passes would misrepresent what the tool shows you.
+* The demo deliberately contains a failing Case. A demo in which everything
+  passes would misrepresent what the tool shows you. Measured against the
+  replies below: eight Cases, one repeat each, seven pass and one fails.
 * This is Studio's own reviewed code served over loopback. It never executes a
   user-supplied application.
 """
 
 from __future__ import annotations
+
+import os
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - import for type checkers only
+    from .schema import Settings
 
 # Marks every artifact produced from this bot. Shown in the UI and exports.
 DEMO_LABEL = "Synthetic demonstration data — not a measurement of a real chatbot"
@@ -28,6 +35,12 @@ DEMO_BOT_NAME = "Synthetic demo bot"
 DEMO_PORT = 2709
 DEMO_PATH = "/chat"
 DEMO_URL = f"http://127.0.0.1:{DEMO_PORT}{DEMO_PATH}"
+DEMO_HEALTH_URL = f"http://127.0.0.1:{DEMO_PORT}/health"
+#: The JSON field the demo bot answers in. The connector reads this key.
+DEMO_RESPONSE_FIELD = "answer"
+#: What a correct demo run produces, so the UI, the documents and the tests all
+#: quote one measured number instead of three drifting ones.
+DEMO_EXPECTED = {"cases": 8, "repeats": 1, "results": 8, "passed": 7, "failed": 1}
 # A fictional catalogue. These identifiers exist only in this file.
 CATALOGUE = {
     "SD-100": {"name": "Demo desk lamp", "warranty_months": 24, "price": "1299"},
@@ -98,12 +111,102 @@ def reply(message: str) -> str:
     )
 
 
+def start_commands() -> dict[str, str]:
+    """The exact command for each platform, using the project's own environment.
+
+    ``run.ps1`` starts Studio in one terminal and does not activate a second, so
+    a bare ``python scripts/demo_bot.py`` would run against whatever interpreter
+    happens to be on PATH. These name the project virtual environment instead.
+    """
+    return {
+        "windows": r".\.venv\Scripts\python.exe scripts\demo_bot.py",
+        "posix": "./.venv/bin/python scripts/demo_bot.py",
+    }
+
+
+def start_command(platform: str | None = None) -> str:
+    """The launch command for this machine, or for a named platform."""
+    name = platform or os.name
+    return start_commands()["windows" if name in ("nt", "windows") else "posix"]
+
+
+def demo_config() -> Settings:
+    """Build the demo's evaluation settings on the server, from this fixture only.
+
+    The caller supplies no evaluation configuration at all, which is the point:
+    a demo assembled from a client payload could be pointed at a real bot or a
+    real provider. Every field that could cause a model call is pinned here.
+
+    * ``judge_enabled`` is off and no Judge is selected, so the deterministic
+      literal ``checks`` do the scoring. Normal AI evaluations still validate
+      their required Judge; nothing in this function relaxes that.
+    * ``auto_local_fallback`` is off, so the runner never probes for an
+      installed local model. Discovery is itself a model call.
+    * ``simple_mode`` is off and ``all_imported_cases`` is on, with
+      ``categories`` limited to the demo's own Categories, so planning uses
+      exactly these eight Cases. The ordinary ten-Category suite is not run and
+      no authored or legacy scenario is substituted.
+    * ``repeat_counts`` is left empty, which is one repeat per Case.
+    """
+    from .schema import Settings, Target
+
+    cases = case_set()
+    config = Settings(
+        targets=[
+            Target(
+                name=DEMO_BOT_NAME,
+                url=DEMO_URL,
+                kind="rest",
+                response_field=DEMO_RESPONSE_FIELD,
+            )
+        ],
+        categories=list(dict.fromkeys(case["category"] for case in cases)),
+        custom_cases=cases,
+        all_imported_cases=True,
+        simple_mode=False,
+        judge_enabled=False,
+        judges=[],
+        auto_local_fallback=False,
+        consent=True,
+        judge_consent=False,
+        ownership_confirmed=True,
+        repeat_counts={},
+        retention_days=0,
+    )
+    config._demo_fixture = True
+    config._setup_notes.append(DEMO_LABEL)
+    return config
+
+
+def disclosure() -> dict:
+    """The persistent synthetic-data marker stored on a demo Run.
+
+    Saved with the Run, so it survives a restart and travels into the dashboard,
+    Governance and both exports rather than being a transient banner.
+    """
+    return {
+        "synthetic": True,
+        "label": DEMO_LABEL,
+        "bot": DEMO_BOT_NAME,
+        "bot_url": DEMO_URL,
+        "fixture": "app/blackbox/demo_bot.py",
+        "judge_used": False,
+        "provider_calls": 0,
+        "expected": dict(DEMO_EXPECTED),
+        "note": (
+            "Produced by Studio's bundled synthetic fixture over loopback. It shows how "
+            "Results, evidence, Governance and exports behave. It is not a measurement of "
+            "any real chatbot, and no AI Judge scored it."
+        ),
+    }
+
+
 def case_set() -> list[dict]:
     """Return the demo Cases.
 
     Each Case carries literal ``checks`` so it scores with the AI Judge off.
-    Two Cases are written to fail against the replies above, so the demo shows
-    a failure, its evidence and its effect on the index.
+    One Case is written to fail against the replies above, so the demo shows a
+    failure, its evidence and its effect on the index.
     """
     return [
         {

@@ -1664,3 +1664,121 @@ its unchanged 1.200 s budget.
   Linux, macOS and Docker remain unqualified.
 - Human calibration labels and a live provider smoke test were not obtained, and are reported
   as outstanding rather than done.
+
+## Phase 10 — 2026-11-10 — Release-candidate defect repair (T-054)
+
+Checkout: `D:\AI-Agent-Testing-Studio`, branch `codex/open-source-release`, based on `4db73b8`.
+The 2026-11-10 offline audit ran against a second checkout on `C:` at `cfbe8de` plus 34 staged
+changes, because its `D:` Git access was denied. Those 34 changes are committed here as
+`178b8c7` with three later commits on top, so the repair was applied to this newer tree and the
+`C:` audit snapshot was left untouched. The audit's numbers stay historical.
+
+Five of the six audited defects reproduced here and were repaired. The sixth, the formatting
+gate, was already green in this checkout.
+
+### Fix 1 — the advertised no-key demo now works through the current shell
+
+What was actually wrong: the README told a new user to switch the AI Judge off and import
+`/api/blackbox/case-set/demo`, but `configuration()` in `simple.js` has no `custom_cases` field
+at all, and the shell has no Judge-off control. `assurance.js` attaches a capture-phase listener
+to `#start` with `stopImmediatePropagation()`, so the older direct handler in `simple.js` — the
+one that rejects an empty Judge list — never runs. The browser probe's captured payload was
+`simple_mode: true` with no Cases and no `judge_enabled`, which is the ordinary ten-Category
+suite, not the demo. The backend demo and its 12 tests worked throughout; the journey did not.
+
+- `POST /api/blackbox/demo/runs` accepts only `{"consent": bool}`, with `extra: "forbid"`, and
+  builds everything in `demo_bot.demo_config()`: Judge off, `judges=[]`,
+  `auto_local_fallback=False` so no local discovery probe runs, `simple_mode=False` with
+  `all_imported_cases=True` and `categories` limited to the demo's own six.
+- It health-checks `127.0.0.1:2709/health` first and refuses with the exact per-platform command
+  if the fixture is down, or if something else holds the port.
+- Evaluate gained a **Try it first, with no account** card with its own consent box, the eight
+  expected results and both venv-qualified start commands.
+- `_demo_fixture` is a `PrivateAttr`. `make_run` writes `run["synthetic_demo"]` and prepends the
+  label to `run["limitations"]`, so the disclosure is saved with the Run and reaches the shared
+  header badge, the PDF and the JSON export. `audit(run, "synthetic_demo", ...)` records the
+  fixture before dispatch.
+- Fixed while testing: a Black-box-only Run's results were **invisible**. `assurance.js`'s
+  `show()` hides every `#results` child unless its own tab is `black`, and it last ran before
+  `runId` was set; the non-notifying `selectRun` never re-triggered it. The demo now selects its
+  Run the notifying way, which is the same path a `?run=` URL load takes.
+
+Measured in a real browser across two real loopback processes: 8 Cases, one repeat each, 8 of 8
+scored with no Judge — 7 passed, 1 failed — 9 bot calls (the exact turn count), **0 judge
+calls**, no request outside the two loopback ports, JSON and PDF (59793 bytes) exports carrying
+the disclosure, and the Run reopened after a Studio restart with the badge still present.
+
+### Fix 2 — the manifest can no longer destroy its input
+
+`scripts/release_manifest.py` wrote to `--output` with no identity check, so the audit's probe
+passed one path as both arguments, exited 0, and turned a ZIP into Markdown. Now the destination
+is resolved and validated before anything is opened for writing: a `.zip` output is refused, and
+the artifact is compared by resolved path and by `os.path.samefile`, so a hard link or symlink
+with a `.md` name is caught too. An existing output is preserved unless `--replace` is passed.
+Publication uses a temporary file and the source packager's atomic no-clobber rename (Windows) or
+hard link (POSIX), so a destination created mid-generation is kept. Failures exit 1 with one line
+and no traceback.
+
+### Fix 3 — unknown Git state is no longer reported as clean
+
+`status == "unavailable"` made `dirty` false, so a manifest produced without Git claimed
+`Working tree | clean` and identified the artifact as `commit unavailable (clean working tree)`.
+New `scripts/build_provenance.py` returns one of three explicit states. Missing Git, a failed
+`git status`, an unresolvable HEAD and a non-repository source are all **unknown** with a stated
+reason. Inspection-time Git state is reported in its own section, labelled as not describing the
+build, because this script runs after packaging. Build attribution now requires
+`--build-manifest`, a JSON record the packager writes beside the archive holding the finished
+bytes' SHA-256 and the Git state at that moment; a hash mismatch exits 1, so an older or
+unrelated ZIP cannot be attributed to the current commit.
+
+### Fix 4 — the content digest frames its input
+
+The digest concatenated member names and raw contents with no lengths, so `{"a": b"bc"}` and
+`{"ab": b"c"}` both hashed `b"abc"`. An encoding ambiguity, not a break of SHA-256: the full
+artifact hashes always differed, and the audit said so. Replaced by `studio-release-content-v2`,
+which length-frames every name and content and uses a per-member SHA-256. Sorting and
+timestamp/order/compression independence are retained and tested. Duplicate member names are
+refused. The algorithm version is printed in the manifest with a note that earlier values are
+not comparable; no content digest had been published, so nothing in circulation is invalidated.
+
+### Fix 5 — the shipped artifact passes its own documentation checker
+
+The checkout checker passed while the extracted archive carried four broken links:
+`docs/Rules.md` linked `../HANDOFF.md` and `../PROGRESS.md`, which the manifest deliberately
+excludes. Rules now names them as local working history without linking them, and points a reader
+of a released copy at the tasks and the release checklist. `check_docs.py` enforces the contract
+directly — a shipped document may not link an excluded file — sharing one `packaged()`
+implementation with the packager so the two cannot drift. Three new packaging tests build the
+real archive, extract it and run the **archive's own** checker in an isolated interpreter, prove
+the archive's checker covers every shipped Markdown document rather than only the README, and
+prove required-file inclusion alongside private-file exclusion. Verified by reintroducing the
+original link: the checkout checker exited 1 and both archive tests failed. **The local
+`PROGRESS.md` and `HANDOFF.md` were not moved, trimmed or published.**
+
+### Fix 6 — the formatting gate was already green here
+
+The audit's `npm run format:check` failed on `docs/PRD.md`, `DECISIONS.md`, `HANDOFF.md` and
+`PROGRESS.md`. Those were formatted in this checkout by `178b8c7`–`4db73b8`, which the audit could
+not read. The gate exits 0 here, before and after this task, and every document touched by these
+fixes was formatted with the pinned Prettier. No file was removed from the formatting command, no
+ignore entry was added, no exit code was suppressed and the CI step is unchanged.
+
+### Verification
+
+Serial, machine otherwise idle, benchmark not run alongside browser work. `pip check` clean;
+Ruff lint and format clean across 139 files; `npm run format:check` exit 0; `npm run check:js`
+16 files; `npm run test:ui` 23 passed; `scripts/check_docs.py` passed across 34 documents;
+**`pytest -q`: 897 passed, 1 skipped, 1 warning, 157.45 s** (from 817 passed, 1 skipped —
+80 new tests); `check-studio-ui.py`, `check-demo-journey.py` and `check-exact-compare.py` all
+passed with zero browser errors and zero provider calls; `git diff --check` clean. New test
+files: `tests/test_release_manifest.py` (33). Extended: `test_demo.py` (12 to 24),
+`test_package_release.py` (14+1 to 18+1), `test_verification_wiring.py` (8 to 10),
+`test_comparison_ui.py` (its route allowlist now serves the demo card's request).
+
+### Still outstanding, and not touched by this repair
+
+T-051 (owner approvals: distribution rights, the third-party company reference decision, a
+monitored security route) and T-052 (native Linux/macOS/Docker, pacing stress) remain
+**Blocked**. Human Judge calibration remains external work, so no Judge in this release is
+calibrated. None of these is a defect the audit demonstrated, and none was marked Done.
+Nothing was pushed, published or made visible.

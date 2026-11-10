@@ -116,6 +116,20 @@ def comparison_page(browser):
                 route.fulfill(json=[run])
             elif path == "/api/assurance/runs":
                 route.fulfill(json=[])
+            elif path == "/api/blackbox/case-set/demo":
+                # The Evaluate screen's demo card reads this on load (T-054).
+                from app.blackbox import demo_bot
+
+                route.fulfill(
+                    json={
+                        "cases": demo_bot.case_set(),
+                        "target_url": demo_bot.DEMO_URL,
+                        "start_command": "python scripts/demo_bot.py",
+                        "start_commands": demo_bot.start_commands(),
+                        "expected": demo_bot.DEMO_EXPECTED,
+                        "disclosure": demo_bot.DEMO_LABEL,
+                    }
+                )
             elif path == f"/api/blackbox/runs/{RUN_ID}":
                 route.fulfill(json=run)
             elif path == f"/api/studio/runs/{RUN_ID}/events":

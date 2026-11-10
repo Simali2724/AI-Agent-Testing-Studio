@@ -16,6 +16,10 @@ import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
+# Lets the sibling build-provenance recorder import cleanly whether this file is
+# run as a script or loaded by path from the tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 SOURCE_DIRS = {"app", "scripts", "tests", "sample_project", "docs", ".github"}
 ROOT_FILES = {
     "README.md",
@@ -269,6 +273,16 @@ def _allowed_name(name: str) -> bool:
     return path.suffix.casefold() not in PRIVATE_SUFFIXES
 
 
+def packaged(name: str) -> bool:
+    """Whether one repository-relative POSIX path is exported by this manifest.
+
+    Public because the documentation checker needs the same answer: a document
+    that ships must not link a file that does not. Keeping one implementation
+    stops the two contracts drifting apart.
+    """
+    return _allowed_name(name)
+
+
 def _check_content(name: str, data: bytes, secrets: tuple[bytes, ...]) -> None:
     if any(value in data for value in secrets):
         raise PackagingError(
@@ -338,9 +352,21 @@ def validate_archive(path: Path, secrets: tuple[bytes, ...] = ()) -> tuple[int, 
     return count, total
 
 
-def package_release(root: Path | str, output: Path | str) -> dict:
+def package_release(
+    root: Path | str, output: Path | str, build_manifest: Path | str | None = None
+) -> dict:
+    """Export a verified source ZIP, optionally recording its build provenance.
+
+    ``build_manifest`` names a JSON sidecar written once the archive is
+    published. It carries the finished archive's SHA-256 together with the Git
+    state of the tree that produced it, so a later manifest can attribute the
+    artifact to a commit instead of guessing from whatever is checked out then.
+    """
     root = Path(root).absolute()
     output = Path(output).absolute()
+    record_path = Path(build_manifest).absolute() if build_manifest is not None else None
+    if record_path is not None and record_path == output:
+        raise PackagingError("The build provenance record must not be the archive itself.")
     if not root.is_dir() or _is_link(root):
         raise PackagingError("The source root must be an existing directory, not a link.")
     root = root.resolve()
@@ -382,7 +408,27 @@ def package_release(root: Path | str, output: Path | str) -> dict:
             raise PackagingError(
                 "Output appeared during export; existing archive was preserved."
             ) from None
-        return {"output": str(output), "files": count, "source_bytes": total, "verified": True}
+        result = {"output": str(output), "files": count, "source_bytes": total, "verified": True}
+        if record_path is not None:
+            # Recorded only now, so the hash is of the bytes that were published.
+            from build_provenance import ProvenanceError, record
+
+            try:
+                written = record(
+                    record_path,
+                    source_root=root,
+                    artifact=output,
+                    files=count,
+                    source_bytes=total,
+                )
+            except ProvenanceError as exc:
+                raise PackagingError(
+                    f"The archive was published, but its build provenance record was not "
+                    f"written: {exc}"
+                ) from None
+            result["build_manifest"] = str(record_path)
+            result["source_state"] = written["source"]["state"]
+        return result
     except PackagingError:
         raise
     except OSError:
@@ -395,13 +441,26 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        "--build-manifest",
+        type=Path,
+        default=None,
+        help="Write a JSON build provenance record here, holding the finished archive's "
+        "SHA-256 and the Git state of the tree that produced it. "
+        "scripts/release_manifest.py verifies it before claiming build attribution.",
+    )
     args = parser.parse_args(argv)
     try:
-        result = package_release(args.root, args.output)
+        result = package_release(args.root, args.output, args.build_manifest)
     except PackagingError as exc:
         print(f"Export refused: {exc}", file=sys.stderr)
         return 1
     print(f"Verified source ZIP created: {result['output']} ({result['files']} files).")
+    if "build_manifest" in result:
+        print(
+            f"Build provenance recorded: {result['build_manifest']} "
+            f"(source state: {result['source_state']})."
+        )
     return 0
 
 

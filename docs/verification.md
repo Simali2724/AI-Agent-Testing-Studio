@@ -276,3 +276,146 @@ this candidate reports pacing stress as **Not tested** rather than citing the ot
 recorded 50 of 50 result. `tests/test_concurrency.py` and the real-time benchmark in
 `tests/test_speed_cache.py` do pass here, which is a narrower claim. The benchmark
 threshold was not changed and no workload was reduced.
+
+## 2026-11-10 — Release-candidate defect repair (T-054)
+
+Environment: Windows 11 Home Single Language 10.0.26300, Python 3.12.3, Node 24.18.0,
+project `.venv`. Repository checkout on the `D:` volume, branch `codex/open-source-release`,
+based on commit `4db73b8`. Every check below used synthetic fixtures, temporary runtimes and
+loopback servers. **No provider credential was used and no paid or cloud call was made.**
+
+A note on which checkout this record qualifies: the 2026-11-10 offline audit ran against a
+second checkout on the `C:` volume, HEAD `cfbe8de` plus 34 staged changes, because its `D:`
+Git access was denied. Those 34 changes are committed here
+as `178b8c7`, with three later commits on top. The repair was applied **here**, to the newer
+tree, and the numbers below are from this tree. The audit's own numbers remain historical and
+describe the older checkout.
+
+### Defects reproduced before the repair
+
+Confirmed present in this checkout, not taken on the audit's word:
+
+| Audit ticket     | Reproduced here                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 — demo UI      | Yes. `configuration()` carries no `custom_cases` field and the shell has no Judge-off or import control                                    |
+| 2 — overwrite    | Yes. `--artifact` and `--output` on one path exited 0 and left the ZIP as Markdown                                                         |
+| 3 — provenance   | Yes. Unavailable Git produced `Working tree \| clean` and `commit unavailable (clean working tree)`                                        |
+| 4 — digest       | Yes. `{"a": b"bc"}` and `{"ab": b"c"}` returned one content digest; artifact SHA-256 values differed, as the audit stated                  |
+| 5 — archive docs | Yes. The extracted archive reported four broken links in `docs/Rules.md`; the checkout checker passed                                      |
+| 6 — formatting   | **No.** `npm run format:check` already exited 0 here. The four files were formatted by `178b8c7`–`4db73b8`, which the audit could not read |
+
+### Verification gate after the repair
+
+Run serially on an otherwise idle machine. The real-time benchmark ran inside the full suite
+with no browser or stress work alongside it.
+
+| Check                      | Command                                                                 | Result                                                                  |
+| -------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Dependency consistency     | `python -m pip check`                                                   | No broken requirements                                                  |
+| Python lint                | `python -m ruff check app tests scripts sample_project`                 | Passed                                                                  |
+| Python format              | `python -m ruff format --check app tests scripts sample_project`        | **139 files** already formatted                                         |
+| Frontend/docs formatting   | `npm run format:check`                                                  | **Exit 0.** All matched files use Prettier style                        |
+| JavaScript syntax          | `npm run check:js`                                                      | 16 files parsed                                                         |
+| Shell navigation/state     | `npm run test:ui`                                                       | **23 passed, 0 failed**                                                 |
+| Documentation checker      | `python scripts/check_docs.py`                                          | Passed across **34** maintained documents                               |
+| Full regression suite      | `python -m pytest -q`                                                   | **897 passed, 1 skipped**, 1 warning, **157.45 s**                      |
+| Current shell in a browser | `python scripts/check-studio-ui.py --artifacts runtime/ui-artifacts`    | All sections passed, 17 eligible conversations, `browser_errors: []`    |
+| Demo journey in a browser  | `python scripts/check-demo-journey.py --artifacts runtime/ui-artifacts` | Passed, **0 judge calls**, 9 loopback bot calls, `offsite_requests: []` |
+| Legacy comparison UI       | `python scripts/check-exact-compare.py`                                 | All sections passed, **0 provider calls**                               |
+| Whitespace                 | `git diff --check`                                                      | Clean                                                                   |
+
+The suite grew from **817 passed, 1 skipped** to **897 passed, 1 skipped**: 80 new tests. The
+Windows symlink-capability skip and the single Starlette `TestClient` deprecation warning are
+unchanged and are disclosed rather than counted as passes. The audit's earlier
+`socket.socketpair` stall did not recur here; no production event-loop behaviour was changed
+and no test was skipped to avoid it.
+
+### The advertised demo journey, in a real browser
+
+`scripts/check-demo-journey.py` drives two real loopback processes — Studio and the bundled
+demo bot — through the journey the README documents, in Chromium, in a temporary runtime.
+
+| Step                              | Result                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| Per-platform start commands shown | `.venv\Scripts\python.exe` and `.venv/bin/python`, both asserted in the page          |
+| Consent enforced                  | Clicking **Run the demo** unticked refuses and starts nothing                         |
+| Demo started from the shell       | `POST /api/blackbox/demo/runs` with a consent boolean and no evaluation configuration |
+| Cases planned                     | **8**, one repeat each, across six Categories; the ten-Category suite was not planned |
+| Scored with no Judge              | **8 of 8 scored — 7 passed, 1 failed**; `0 Not tested` in every Category              |
+| Bot calls                         | **9** — the exact turn count — all to `127.0.0.1:2709`                                |
+| Judge calls                       | **0.** `judge_enabled=false`, `judges=[]`, `auto_local_fallback=false`                |
+| Requests outside the two ports    | **None.** `offsite_requests: []`                                                      |
+| Synthetic disclosure              | Badge visible on Evaluate, Results **and** Governance, from the saved Run             |
+| JSON export                       | Carries `synthetic_demo` and the label in `limitations`                               |
+| PDF export                        | Rendered, **59793 bytes**, valid `%PDF` header                                        |
+| Reopened after a Studio restart   | Same Run, same eight results, badge still present                                     |
+| Browser errors                    | **None**                                                                              |
+
+Provider absence is enforced twice: this check fails on any request leaving the two loopback
+ports, and `tests/test_demo.py` runs the whole demo through the shipped REST connector against
+the demo bot's own ASGI app with `metering.completion` replaced by a stub that raises.
+
+Fixed while building this check: a Black-box-only Run's results were invisible in the current
+shell, because `assurance.js` hides them unless its own tab is active and the non-notifying
+`selectRun` never re-ran that logic. The demo now selects its Run the notifying way.
+
+### Manifest, provenance and digest
+
+`tests/test_release_manifest.py`: **33 passed**. Each case below is asserted there, and the
+audit's probes were rewritten as assertions of corrected behaviour.
+
+| Case                                                             | Result                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `--output` equal to `--artifact`                                 | Exit 1; input bytes unchanged; still a valid ZIP                   |
+| Hard-link alias of the artifact with a `.md` name                | Exit 1; input bytes unchanged                                      |
+| Relative and absolute spellings of one path                      | Refused                                                            |
+| Existing unrelated destination                                   | Preserved; exit 1                                                  |
+| Destination created mid-generation (race)                        | Preserved; no manifest written                                     |
+| `--replace`                                                      | Replaces deliberately, and only then                               |
+| Fresh manifest                                                   | Exit 0; records the artifact's actual unchanged SHA-256            |
+| Missing artifact, non-ZIP file                                   | Exit 1, no traceback, no output file                               |
+| Missing Git, failed `git status`, no commit, non-repository      | **Unknown** provenance with a stated reason; never clean           |
+| Known clean vs dirty                                             | Distinguishable, with commit and tree recorded                     |
+| Older ZIP against another build's record                         | Exit 1, "different artifact"; no attribution                       |
+| Verified clean build record                                      | Attributes the commit, labelled "clean working tree at build time" |
+| `{"a": b"bc"}` vs `{"ab": b"c"}`                                 | **Different** content digests; artifact hashes differ as before    |
+| Renames, changed bytes, empty files, Unicode names, path vs name | All distinguished                                                  |
+| Differing ZIP timestamps, member order and compression           | **Equal** content digests, per the documented policy               |
+| Duplicate member names                                           | Refused explicitly; exit 1                                         |
+
+The content-digest algorithm is now versioned as `studio-release-content-v2` and printed in the
+manifest. It length-frames every member name and content and uses a per-member SHA-256. Values
+from the earlier unframed algorithm are **not comparable** with it; the manifest says so. No
+previously published content digest exists to invalidate. Full artifact SHA-256 behaviour is
+unchanged.
+
+### Documentation inside the shipped artifact
+
+| Step                                                           | Result                                                                             |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Build the real archive, extract to a fresh temporary directory | Done from the tracked tree via `git ls-files`                                      |
+| Run the **archive's own** `scripts/check_docs.py` on it        | **Exit 0**, in an isolated interpreter (`python -I`)                               |
+| Coverage inside the archive                                    | Every shipped Markdown document, not only the README                               |
+| Local history, secrets, runtime records                        | `PROGRESS.md`, `HANDOFF.md`, `NEXT_AI_PROMPT.md`, `.env` and `runtime/` all absent |
+| Checkout checker catches the same class of defect              | Yes: a shipped document linking an excluded file now fails                         |
+
+Verified by reintroducing the original `docs/Rules.md` link: the checkout checker exited 1 and
+both archive tests failed. Restored, all three pass. `docs/Rules.md` now names the working
+history without linking it and points a reader of a released copy at the tasks and the release
+checklist. **The local `PROGRESS.md` and `HANDOFF.md` were not moved, trimmed or published.**
+
+### What this repair still does not establish
+
+Unchanged by this task, and not closed by it:
+
+- Native Linux, macOS and Docker qualification (**T-032**, **T-052**). Only Windows was
+  exercised. A committed workflow file is not evidence that a remote job ran.
+- Bounded parallel pacing stress (**T-052**). Still **Not tested** here; the harness lives in a
+  separate working tree and its results are not this candidate's.
+- Human Judge calibration (**T-053**'s outstanding half). No real human labels exist, so no
+  Judge in this release is calibrated. The demo says nothing about Judge accuracy: no Judge ran.
+- Owner approvals gating publication (**T-051**): written distribution rights, the third-party
+  company reference decision, and a monitored security reporting route.
+
+None of these four is a defect the 2026-11-10 audit demonstrated, and none may be marked Done
+from an offline repair. Nothing was pushed, published or made visible by this task.

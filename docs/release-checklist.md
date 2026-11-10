@@ -47,10 +47,12 @@ Keep artifacts only from synthetic or redacted fixtures. A text search is not a 
 Build into an ignored output directory, never into the working tree:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/package_release.py --root . --output runtime/release/ai-agent-studio-<version>.zip
+.\.venv\Scripts\python.exe scripts/package_release.py --root . --output runtime/release/ai-agent-studio-<version>.zip --build-manifest runtime/release/ai-agent-studio-<version>.build.json
 ```
 
 The packager refuses to overwrite an existing archive, refuses credential material, and validates the archive before publishing it. If it refuses, fix the cause locally; do not widen the manifest to silence it.
+
+`--build-manifest` is what makes build attribution possible. It records the finished archive's SHA-256 together with the Git state of the tree that produced it, at the moment it produced it. Without that record, a manifest generated later can only inspect the repository as it is then, which says nothing about this build, and the manifest will correctly report source provenance as **Unknown**.
 
 ## 5. Prove the archive installs on its own
 
@@ -74,8 +76,15 @@ Then confirm the failure paths give actionable errors: a missing Python, an occu
 Record the candidate commit and tree identity, version, artifact SHA-256, the platform matrix with what was actually qualified, and the test evidence. Compute the hash of the **final** artifact, not an earlier build:
 
 ```powershell
+.\.venv\Scripts\python.exe scripts/release_manifest.py --artifact runtime/release/ai-agent-studio-<version>.zip --version <version> --evidence docs/verification.md --build-manifest runtime/release/ai-agent-studio-<version>.build.json
 Get-FileHash runtime/release/ai-agent-studio-<version>.zip -Algorithm SHA256
 ```
+
+The manifest command refuses to write to its own input, including through a symlink or hard-link alias, and keeps an existing manifest unless `--replace` is passed. Read these three rows before approving anything:
+
+- **Source state** is `Clean`, `Dirty` or `Unknown`. `Unknown` is not a clean tree: it means Git was unavailable, `git status` failed, HEAD did not resolve, or the source was not a repository. Identify such an artifact by its hash alone.
+- **Build attribution** says whether a verified build record backed the commit shown. Without it the commit row is `Unavailable` by design.
+- **Content digest algorithm** names the canonical format. It is `studio-release-content-v2`, which length-frames every member name and content. Values from the earlier unframed algorithm are **not** comparable with it; compare the artifact SHA-256 when in doubt.
 
 ## 7. Update the documents
 

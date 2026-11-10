@@ -190,6 +190,9 @@ class Settings(BaseModel):
     provider_limits: dict[str, int] = Field(default_factory=dict)
     _protocol_override: dict | None = PrivateAttr(default=None)
     _reproduced_from: str = PrivateAttr(default="")
+    #: Set only by `demo_bot.demo_config()` on the server. Private on purpose: a
+    #: client-settable flag could label a real evaluation as synthetic.
+    _demo_fixture: bool = PrivateAttr(default=False)
     judges: list[JudgeSelection] = Field(default_factory=list, max_length=8)
     repeat_counts: dict[str, int] = Field(default_factory=dict)
     category_weights: dict[str, float] = Field(default_factory=dict)

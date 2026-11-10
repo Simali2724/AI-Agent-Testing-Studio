@@ -6,9 +6,16 @@ contributor and security documents, the guides and the issue templates, so a
 newly added document cannot ship with a broken relative link.
 
 Generated, vendored and runtime directories are skipped, and the internal
-working history is excluded because it is deliberately not part of the source
-archive. External URLs are not fetched. Code examples are not interpreted as
-Markdown links. This checks structure, not the truth of product claims.
+working history is excluded from scanning because it is deliberately not part of
+the source archive. External URLs are not fetched. Code examples are not
+interpreted as Markdown links. This checks structure, not the truth of product
+claims.
+
+It also checks the distribution contract: a document the release manifest
+exports must not link a file the manifest excludes. Without that check, links
+resolve in the working checkout and break only once a user extracts the archive,
+which is exactly how four broken links reached a release candidate. Run it with
+``--root <extracted archive>`` to check a built artifact on its own terms.
 """
 
 from __future__ import annotations
@@ -18,6 +25,10 @@ import re
 import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from package_release import packaged  # noqa: E402
 
 DOCUMENTS = ("PRD.md", "Architecture.md", "Design.md", "Rules.md", "tasks.md")
 # Generated, vendored or local runtime directories.
@@ -107,6 +118,39 @@ def markdown_files(root: Path) -> list[Path]:
     return found
 
 
+def relative_to_root(root: Path, path: Path) -> str | None:
+    """The POSIX path the release manifest would see, or None when outside the root."""
+    try:
+        return path.resolve().relative_to(root).as_posix()
+    except ValueError:
+        return None
+
+
+def shipping_errors(
+    root: Path, source: Path, destination: Path, link: str, location: str
+) -> list[str]:
+    """Reject a shipped document that links a file the source archive excludes.
+
+    Only files are judged. A link to a directory is left to the broken-link
+    check above, and a document the manifest already excludes may link whatever
+    it likes, because no user receives it.
+    """
+    if not destination.is_file():
+        return []
+    source_name = relative_to_root(root, source)
+    target_name = relative_to_root(root, destination)
+    if source_name is None or not packaged(source_name):
+        return []
+    if target_name is None:
+        return [f"{location}: link {link} points outside the repository"]
+    if packaged(target_name):
+        return []
+    return [
+        f"{location}: shipped document links {link}, which the source archive excludes. "
+        f"A reader of the extracted archive would find a broken link."
+    ]
+
+
 def check_docs(root: Path) -> list[str]:
     """Return actionable failures without mutating files or making network requests."""
     root = root.resolve()
@@ -147,6 +191,7 @@ def check_docs(root: Path) -> list[str]:
             if not destination.exists():
                 errors.append(f"{location}: broken relative link {link}")
                 continue
+            errors.extend(shipping_errors(root, path, destination, link, location))
             if parsed.fragment and destination.suffix.lower() == ".md":
                 try:
                     target_text = destination.read_text(encoding="utf-8-sig")
