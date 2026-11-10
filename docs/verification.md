@@ -309,26 +309,39 @@ Confirmed present in this checkout, not taken on the audit's word:
 Run serially on an otherwise idle machine. The real-time benchmark ran inside the full suite
 with no browser or stress work alongside it.
 
-| Check                      | Command                                                                 | Result                                                                  |
-| -------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Dependency consistency     | `python -m pip check`                                                   | No broken requirements                                                  |
-| Python lint                | `python -m ruff check app tests scripts sample_project`                 | Passed                                                                  |
-| Python format              | `python -m ruff format --check app tests scripts sample_project`        | **139 files** already formatted                                         |
-| Frontend/docs formatting   | `npm run format:check`                                                  | **Exit 0.** All matched files use Prettier style                        |
-| JavaScript syntax          | `npm run check:js`                                                      | 16 files parsed                                                         |
-| Shell navigation/state     | `npm run test:ui`                                                       | **23 passed, 0 failed**                                                 |
-| Documentation checker      | `python scripts/check_docs.py`                                          | Passed across **34** maintained documents                               |
-| Full regression suite      | `python -m pytest -q`                                                   | **897 passed, 1 skipped**, 1 warning, **157.45 s**                      |
-| Current shell in a browser | `python scripts/check-studio-ui.py --artifacts runtime/ui-artifacts`    | All sections passed, 17 eligible conversations, `browser_errors: []`    |
-| Demo journey in a browser  | `python scripts/check-demo-journey.py --artifacts runtime/ui-artifacts` | Passed, **0 judge calls**, 9 loopback bot calls, `offsite_requests: []` |
-| Legacy comparison UI       | `python scripts/check-exact-compare.py`                                 | All sections passed, **0 provider calls**                               |
-| Whitespace                 | `git diff --check`                                                      | Clean                                                                   |
+| Check                      | Command                                                                 | Result                                                                                                   |
+| -------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Dependency consistency     | `python -m pip check`                                                   | No broken requirements                                                                                   |
+| Python lint                | `python -m ruff check app tests scripts sample_project`                 | Passed                                                                                                   |
+| Python format              | `python -m ruff format --check app tests scripts sample_project`        | **139 files** already formatted                                                                          |
+| Frontend/docs formatting   | `npm run format:check`                                                  | **Exit 0.** All matched files use Prettier style                                                         |
+| JavaScript syntax          | `npm run check:js`                                                      | 16 files parsed                                                                                          |
+| Shell navigation/state     | `npm run test:ui`                                                       | **23 passed, 0 failed**                                                                                  |
+| Documentation checker      | `python scripts/check_docs.py`                                          | Passed across **34** maintained documents                                                                |
+| Full regression suite      | `python -m pytest -q`                                                   | **897 passed, 1 skipped**, 1 warning. Twice: **157.45 s**, then **217.08 s** on the final committed tree |
+| Current shell in a browser | `python scripts/check-studio-ui.py --artifacts runtime/ui-artifacts`    | All sections passed, 17 eligible conversations, `browser_errors: []`                                     |
+| Demo journey in a browser  | `python scripts/check-demo-journey.py --artifacts runtime/ui-artifacts` | Passed, **0 judge calls**, 9 loopback bot calls, `offsite_requests: []`                                  |
+| Legacy comparison UI       | `python scripts/check-exact-compare.py`                                 | All sections passed, **0 provider calls**                                                                |
+| Colour contrast            | `python scripts/check_contrast.py`                                      | WCAG 2.2 AA: **45 measured, 0 failing, 0 skipped**                                                       |
+| Whitespace                 | `git diff --check`                                                      | Clean                                                                                                    |
 
 The suite grew from **817 passed, 1 skipped** to **897 passed, 1 skipped**: 80 new tests. The
 Windows symlink-capability skip and the single Starlette `TestClient` deprecation warning are
 unchanged and are disclosed rather than counted as passes. The audit's earlier
 `socket.socketpair` stall did not recur here; no production event-loop behaviour was changed
 and no test was skipped to avoid it.
+
+The suite was run twice: once when the source fixes were complete, at **157.45 s**, and once
+again on the **final committed tree**, at **217.08 s**. Same 897 passed and 1 skipped both
+times. Only Markdown changed between them, so the difference is wall-clock variance on this
+machine rather than a code change, and it is recorded rather than averaged away. The real-time
+benchmark passed inside both runs against its **unchanged** 1.200 s budget. The second run is
+the one that qualifies the committed tree; the first is not claimed to.
+
+Contrast went from 44 to 45 measured because this task added one colour: the synthetic-demo
+badge, measured at **7.17:1** on its own background against the 4.5:1 requirement for normal
+text. It is amber rather than the interface's purple, so a demonstration Run is not mistaken at
+a glance for a measurement of a real chatbot.
 
 ### The advertised demo journey, in a real browser
 
