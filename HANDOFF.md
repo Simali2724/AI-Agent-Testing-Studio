@@ -9,7 +9,7 @@ D:\AI-Agent-Testing-Studio
 ```
 
 Branch `codex/open-source-release`. Based on `4db73b8`; this task's work is commit
-`REPLACE_WITH_COMMIT` on top of it. Remote `origin` is
+`9eae940` on top of it. Remote `origin` is
 `https://github.com/Simali2724/AI-Agent-Testing-Studio.git`, which is **already public**.
 **Nothing was pushed, tagged, published or made visible by this task.** The commit is local
 only. No provider credential was used and no paid, cloud or local-model call was made.
@@ -85,8 +85,21 @@ Rebuilt after every edit in this task, from a clean tree:
   --build-manifest runtime/release/ai-agent-studio-0.1.0-rc2.build.json
 ```
 
+Built from the clean tree at `9eae940`, so the manifest reports **Clean** provenance with a
+verified build record:
+
+| Field                    | Value                                                              |
+| ------------------------ | ------------------------------------------------------------------ |
+| Members                  | 235                                                                |
+| Size                     | 1210722 bytes                                                      |
+| SHA-256                  | `d6f04be9b3ddf231353d8d05db93b73f2bfa639b118a5eb8bfe80e7887f3172d` |
+| Content digest           | `07cbfa655dc51999f581e49bd1c20d480dcd3da7797bd3f283e4369800aac494` |
+| Content digest algorithm | `studio-release-content-v2`                                        |
+
 `runtime/` is gitignored, so the artifact, its build record and its manifest are **not** in
-Git. The hashes are in `PROGRESS.md` and in the manifest beside the artifact. `--build-manifest`
+Git. The hashes above are also in the manifest beside the artifact and in `PROGRESS.md`. Only
+non-shipped local history (`PROGRESS.md`, `HANDOFF.md`) changed after that build, which is why
+the content digest of a rebuild is unchanged. `--build-manifest`
 is now the only way the manifest will attribute an artifact to a commit; without it the manifest
 correctly reports source provenance as Unknown.
 

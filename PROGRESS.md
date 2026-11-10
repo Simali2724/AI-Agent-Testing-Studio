@@ -1775,6 +1775,30 @@ files: `tests/test_release_manifest.py` (33). Extended: `test_demo.py` (12 to 24
 `test_package_release.py` (14+1 to 18+1), `test_verification_wiring.py` (8 to 10),
 `test_comparison_ui.py` (its route allowlist now serves the demo card's request).
 
+### Candidate artifact
+
+Rebuilt after every edit, from the clean tree at `9eae940`, with
+`--build-manifest`, so the manifest reports **Clean** provenance with a verified build record
+rather than guessing from inspection-time Git state.
+
+| Field                    | Value                                                              |
+| ------------------------ | ------------------------------------------------------------------ |
+| File                     | `ai-agent-studio-0.1.0-rc2.zip`                                    |
+| Members                  | 235                                                                |
+| Size                     | 1210722 bytes                                                      |
+| SHA-256                  | `d6f04be9b3ddf231353d8d05db93b73f2bfa639b118a5eb8bfe80e7887f3172d` |
+| Content digest           | `07cbfa655dc51999f581e49bd1c20d480dcd3da7797bd3f283e4369800aac494` |
+| Content digest algorithm | `studio-release-content-v2`                                        |
+
+Extracted into a fresh temporary directory, the archive passed **its own**
+`scripts/check_docs.py` across 33 shipped Markdown documents, and carried no `PROGRESS.md`,
+`HANDOFF.md`, `NEXT_AI_PROMPT.md`, `.env` or `runtime/` entry. The rc.1 artifact and its
+manifest were left in place; existing archives are never overwritten.
+
+Only non-shipped local history changed after that build, so a rebuild produces the same content
+digest. The hash above is recorded here and in the manifest beside the artifact, never inside a
+shipped document: a document in the archive cannot state its own archive's hash.
+
 ### Still outstanding, and not touched by this repair
 
 T-051 (owner approvals: distribution rights, the third-party company reference decision, a
