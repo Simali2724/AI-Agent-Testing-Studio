@@ -706,3 +706,9 @@ or a partial copy of material the gate ledger says must not ship.
 **Boundaries.** The local histories are untouched and stay tracked in Git. The contract is checked
 in the checkout _and_ against a real extracted archive, because a checkout check alone is exactly
 what missed this.
+
+### D-PERF-20261110 — Memoize database filenames within the pool lifetime
+
+Resolve the database filename once per absolute lexical runtime path, under the pool lock, and clear the cache when `database.close()` retires the pools. Keep SQLite WAL, synchronous FULL, transaction boundaries and audit writes unchanged. Absolute cache keys preserve relative runtime isolation when the working directory changes. If a runtime junction or symlink is deliberately retargeted, close the pools or restart Studio before using its new destination.
+
+This ports the tested shared-branch performance fix without replacing newer release or calibration work. Profiling six synthetic runs on Windows reduced database context overhead from 0.649 to 0.214 seconds; the fixed benchmark remains 1.200 seconds. The measured reduction in filesystem overhead is not a promise about all hosted-runner load. T-055 owns this port; T-053 in this repository remains the human-reviewer calibration task.

@@ -195,6 +195,8 @@ T-046 to T-054 against the current `docs/tasks.md`. The gate ledger is
   and no owner approval. T-051 and T-052 remain **Blocked**; none of them is a defect this audit
   demonstrated, and a green CI run does not close them.
 
+- [x] **T-055 — Done · P1 · S:** reuse resolved database paths for a connection-pool lifetime. **Files:** `app/database.py`, `tests/test_database.py`, `tests/test_speed_cache.py`. **Requirements:** NFR-01, NFR-02, NFR-06. **Acceptance:** changing runtime folders or a relative runtime's working directory keeps records isolated; close invalidates resolved paths; rollback, durable commits, audit anchors and repeat/resume semantics remain intact; the benchmark retains its 1.200 s budget and all Cases. **Dependencies:** T-027. **Evidence:** ported the narrowly reviewed performance fix e9265cb from the shared branch, where all three platform CI jobs passed twice. Three added tests cover runtime isolation, relative paths and resolution reuse/invalidation. This lineage already uses T-053 for calibration reviewers, so the performance change is T-055 here. Combined Simali-tree validation: 900 passed, 1 Windows symlink skip and one existing warning, including the unchanged benchmark. Formatting, lint, documentation checks and 23 navigation tests passed. Shared-branch CI results are not represented as a hosted test of this combined release tree.
+
 ## Known bugs and limitations
 
 Source-inspected or recorded issues, not newly reproduced exploits:

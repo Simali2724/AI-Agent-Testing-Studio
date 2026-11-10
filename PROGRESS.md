@@ -1835,3 +1835,11 @@ What it qualifies: the suite and all three browser checks on **native Linux and 
 does not: CI builds from the lockfiles and never runs `start.sh`, so launcher startup, scanner
 provisioning, container build and local Judge discovery on those platforms stay unverified.
 T-032 and T-052 remain Blocked and no Judge is calibrated.
+
+## 2026-11-10 — Update Simali master with the latest release and performance fix
+
+The owner requested pushing all updates to Simali2724/AI-Agent-Testing-Studio. Fetching origin found master at cfbe8de and a newer codex/open-source-release branch at 99e6b43. Prepared an isolated integration from the latter, preserving its demo, calibration-reviewer, provenance and release-manifest repairs. The initial attempted cherry-pick of the older shared release diff was aborted before publication after discovering the newer remote work. No old release files or shared-only legacy comparison files were copied over the newer source.
+
+Ported only app/database.py, tests/test_database.py and the corrected benchmark docstring from the shared branch's verified performance fix. Corrected the stale Rules description of the tolerance calculation. Added T-055 because T-053 is already calibration-reviewer work here. Kept original source worktrees and saved runtime data unchanged. This is an authorized default-branch source update, not a new tag or release artifact; old rc.2 artifact hashes still describe their original tree, not this integration. Local validation and publication results follow.
+
+Simali integration validation: **900 passed, 1 Windows symlink-capability skip, 1 existing Starlette warning in 274.62 s**. This includes the unchanged performance gate and the newer calibration/demo/manifest regressions. Scoped Ruff passed; repository-wide Prettier passed; JavaScript syntax checked 16 files; all 23 navigation tests passed; documentation coverage and local links passed across 34 documents. Credential-pattern checks on files differing from master found no matches; no runtime data, provider keys or archives are included. The target is a normal fast-forward of origin/master with no force push. Check the workflow for the resulting master commit for remote CI results rather than applying earlier branch results to this combined tree.

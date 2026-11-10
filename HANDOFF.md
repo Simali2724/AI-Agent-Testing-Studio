@@ -1,3 +1,11 @@
+## 2026-11-10 — Simali master integration (latest)
+
+Worktree: `C:\Users\Moinuddeen hussain\Documents\ChatGPT\Moinuddeen_airm\studio-simali-update-20261110`. Local branch: `codex/simali-update-20261110`. Target: `origin/master` at `https://github.com/Simali2724/AI-Agent-Testing-Studio.git`, explicitly authorized by the owner.
+
+Base is the newest fetched release branch, 99e6b43, which already includes the rc.2 release repairs and human-reviewer calibration enhancements below. Added the shared branch's tested database-path optimization as T-055 (T-053 here is calibration reviewers). Preserved newer release files rather than replaying the older release snapshot. No tags or downloadable release artifacts are being created; historical artifact hashes below are not hashes of this updated source.
+
+Local validation passed: 900 tests, 1 Windows symlink skip, one existing warning; the unchanged performance gate, formatting, lint, JavaScript, navigation and documentation checks all passed. See the latest PROGRESS section. The owner authorized a normal fast-forward to origin/master; check the workflow for that commit for remote CI results. Original C: checkouts, their staged changes, the D: checkout and saved runs remain untouched. Outstanding owner distribution/security decisions, native launcher/scanner qualification and real human calibration labels remain separate from this source synchronization.
+
 ## 2026-11-10 — Release-candidate defect repair 0.1.0-rc.2 (current task)
 
 Read this section first; everything below it is dated history.
