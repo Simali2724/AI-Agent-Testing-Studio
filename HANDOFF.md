@@ -8,11 +8,20 @@ Read this section first; everything below it is dated history.
 D:\AI-Agent-Testing-Studio
 ```
 
-Branch `codex/open-source-release`. Based on `4db73b8`; this task's work is commit
-`9eae940` on top of it. Remote `origin` is
-`https://github.com/Simali2724/AI-Agent-Testing-Studio.git`, which is **already public**.
-**Nothing was pushed, tagged, published or made visible by this task.** The commit is local
-only. No provider credential was used and no paid, cloud or local-model call was made.
+Branch `codex/open-source-release`. Based on `4db73b8`; this task's work is four commits on
+top of it:
+
+| Commit    | What it changes                                                                                                             |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `9eae940` | The repair itself: 30 files, 3 added                                                                                        |
+| `8ba4758` | First artifact hashes, in non-shipped local history                                                                         |
+| `47eaf87` | The final-tree suite timing and the contrast measurement in `verification.md` — **the last commit touching a shipped file** |
+| `HEAD`    | The final artifact hashes, in non-shipped local history                                                                     |
+
+Remote `origin` is `https://github.com/Simali2724/AI-Agent-Testing-Studio.git`, which is
+**already public**. **Nothing was pushed, tagged, published or made visible by this task.**
+The commits are local only. No provider credential was used and no paid, cloud or local-model
+call was made.
 
 ### Which checkout this repair was applied to, and why
 
@@ -85,21 +94,22 @@ Rebuilt after every edit in this task, from a clean tree:
   --build-manifest runtime/release/ai-agent-studio-0.1.0-rc2.build.json
 ```
 
-Built from the clean tree at `9eae940`, so the manifest reports **Clean** provenance with a
+Built from the clean tree at `47eaf87`, so the manifest reports **Clean** provenance with a
 verified build record:
 
 | Field                    | Value                                                              |
 | ------------------------ | ------------------------------------------------------------------ |
 | Members                  | 235                                                                |
-| Size                     | 1210722 bytes                                                      |
-| SHA-256                  | `d6f04be9b3ddf231353d8d05db93b73f2bfa639b118a5eb8bfe80e7887f3172d` |
-| Content digest           | `07cbfa655dc51999f581e49bd1c20d480dcd3da7797bd3f283e4369800aac494` |
+| Size                     | 1211110 bytes                                                      |
+| SHA-256                  | `02b35c5d16d9643c95ac19f23d516689564e657b271d32b495dfbca3feb8bf33` |
+| Content digest           | `06e5507527ae6965c25ae4352f3ebcf11187220b414327822e1dd148e2fb0d33` |
 | Content digest algorithm | `studio-release-content-v2`                                        |
 
 `runtime/` is gitignored, so the artifact, its build record and its manifest are **not** in
-Git. The hashes above are also in the manifest beside the artifact and in `PROGRESS.md`. Only
-non-shipped local history (`PROGRESS.md`, `HANDOFF.md`) changed after that build, which is why
-the content digest of a rebuild is unchanged. `--build-manifest`
+Git. The hashes above are also in the manifest beside the artifact and in `PROGRESS.md`. `47eaf87` is the last commit that changes a **shipped** file. Only non-shipped local history
+(`PROGRESS.md`, `HANDOFF.md`) changes after it, so a rebuild from a later commit produces the
+same content digest and a different full SHA-256, the ZIP timestamps being new. That was
+confirmed by rebuilding and comparing: identical content digest, different SHA-256. `--build-manifest`
 is now the only way the manifest will attribute an artifact to a commit; without it the manifest
 correctly reports source provenance as Unknown.
 

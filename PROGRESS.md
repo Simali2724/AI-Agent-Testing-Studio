@@ -1777,7 +1777,7 @@ files: `tests/test_release_manifest.py` (33). Extended: `test_demo.py` (12 to 24
 
 ### Candidate artifact
 
-Rebuilt after every edit, from the clean tree at `9eae940`, with
+Rebuilt after every edit, from the clean tree at `47eaf87`, with
 `--build-manifest`, so the manifest reports **Clean** provenance with a verified build record
 rather than guessing from inspection-time Git state.
 
@@ -1785,9 +1785,9 @@ rather than guessing from inspection-time Git state.
 | ------------------------ | ------------------------------------------------------------------ |
 | File                     | `ai-agent-studio-0.1.0-rc2.zip`                                    |
 | Members                  | 235                                                                |
-| Size                     | 1210722 bytes                                                      |
-| SHA-256                  | `d6f04be9b3ddf231353d8d05db93b73f2bfa639b118a5eb8bfe80e7887f3172d` |
-| Content digest           | `07cbfa655dc51999f581e49bd1c20d480dcd3da7797bd3f283e4369800aac494` |
+| Size                     | 1211110 bytes                                                      |
+| SHA-256                  | `02b35c5d16d9643c95ac19f23d516689564e657b271d32b495dfbca3feb8bf33` |
+| Content digest           | `06e5507527ae6965c25ae4352f3ebcf11187220b414327822e1dd148e2fb0d33` |
 | Content digest algorithm | `studio-release-content-v2`                                        |
 
 Extracted into a fresh temporary directory, the archive passed **its own**
@@ -1795,9 +1795,10 @@ Extracted into a fresh temporary directory, the archive passed **its own**
 `HANDOFF.md`, `NEXT_AI_PROMPT.md`, `.env` or `runtime/` entry. The rc.1 artifact and its
 manifest were left in place; existing archives are never overwritten.
 
-Only non-shipped local history changed after that build, so a rebuild produces the same content
-digest. The hash above is recorded here and in the manifest beside the artifact, never inside a
-shipped document: a document in the archive cannot state its own archive's hash.
+`47eaf87` is the last commit touching a shipped file, so a rebuild from any later commit gives
+the **same content digest** and a different full SHA-256 (new ZIP timestamps). Confirmed by
+rebuilding and comparing. The hashes are recorded here and in the manifest beside the artifact,
+never inside a shipped document: a document in the archive cannot state its own archive's hash.
 
 ### Still outstanding, and not touched by this repair
 
